@@ -1,0 +1,13 @@
+.layout {
+  display: flex;
+  width: 100%;
+  height: 100vh; /* layout full viewport height */
+}
+
+.content-area {
+  flex-grow: 1;
+  padding: 30px;
+  background-color: #f4f4f4; /* bg color */
+  height: 100%;
+  overflow-y: auto; /* scrollable */
+}
