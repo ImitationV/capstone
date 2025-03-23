@@ -1,0 +1,12 @@
+Resource
+
+
+Web App (Frontend) - React or Bootstrap
+
+Routing: "React Router" if web app has multiple pages (e.g., a homepage, a results page, etc.), It'll handle the navigation.
+
+Forms and Validation: "React Hook Form" or "Formik" to collect user input (like salary, savings, goals), and handle form submission and validation.
+
+Backend Integration: "Axios" or "Fetch API" to send requests to backend, retrieve data, and display it on the frontend.
+
+Styling: Bootstrap for basic styling. For more customization , we can use CSS modules or Sass.
