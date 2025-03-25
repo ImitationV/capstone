@@ -9,3 +9,6 @@
 2. Create GoogleAuth Component
 
 Note: Make the Choice to either use GoogleAuth.jsx or to convert into the LoginPage.jsx because I am default using the css styling for loginpage
+
+3. Create Google Cloud Project
+4. 
