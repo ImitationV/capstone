@@ -83,12 +83,14 @@
 .message.assistant {
   background-color: #81d4fa;
   color: black;
+  text-align: left;
 }
 
 .message.user {
   background-color: #388e3c;
   color: white;
   align-self: flex-end;
+  text-align: right;
 }
 
 .chat-messages {
