@@ -18,6 +18,8 @@ Unauthorized access to their systems may have occurred on [date/time, if known].
 
 **Important:** At this time, we have no evidence that Budget Buddy user data was accessed or misused, but we are actively investigating.
 
+---
+
 **What We’re Doing:**
 
 We are working closely with [Third Party Vendor Name] to assess the scope and impact.
@@ -26,12 +28,15 @@ We have temporarily disabled integrations with [Third Party Vendor Name] as a pr
 
 We will notify you immediately if we confirm your data was affected.
 
+---
+
 **What You Can Do:**
 
 Monitor accounts: Check for suspicious activity in accounts linked to Budget Buddy like your google email accounts.
 
 Change passwords: As a precaution, consider updating passwords (especially if reused elsewhere).
 
+---
 
 **Our Commitment:**
 
@@ -44,5 +49,7 @@ For questions, contact our support team at [email/phone] or visit [FAQ page URL]
 --- 
 
 Thank you for your commitment and continued useage.
+
 Sincerely,
+
 Budget Buddy Exeucutive Team
