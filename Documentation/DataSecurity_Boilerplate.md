@@ -48,8 +48,8 @@ For questions, contact our support team at [email/phone] or visit [FAQ page URL]
 
 --- 
 
-Thank you for your commitment and continued useage.
+Thank you for your commitment and continued usage.
 
 Sincerely,
 
-Budget Buddy Exeucutive Team
+Budget Buddy Executive Team
