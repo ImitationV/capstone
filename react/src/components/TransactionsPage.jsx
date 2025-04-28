@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-
 import '../styles/transactions.css'; 
 import { createClient } from '@supabase/supabase-js';
 import ChatbotPopup from './ChatbotPopup';
