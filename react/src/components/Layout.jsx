@@ -2,6 +2,7 @@ import React from 'react';
 import Navbar from './Navbar';
 import '../styles/layout.css';
 import { useLocation } from 'react-router-dom'; 
+import Chatbot from './Chatbot';
 
 function Layout({ children }) {
     const location = useLocation(); // gets the current location
@@ -16,6 +17,7 @@ function Layout({ children }) {
             <div className="content-area">
                 {children}
             </div>
+            {!isLoginPage && <Chatbot />} {/*Chatbot*/}
         </div>
     );
 }
