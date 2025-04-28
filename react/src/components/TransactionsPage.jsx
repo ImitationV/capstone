@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import '../styles/transactions.css';
 import ChatbotPopup from './ChatbotPopup';
 
+
 function TransactionsPage() {
   const [transactionType, setTransactionType] = useState('');
   const [expenseOption, setExpenseOption] = useState('');
@@ -106,6 +107,7 @@ function TransactionsPage() {
         </form>
       </div>
     </div><ChatbotPopup /></>
+
   );
 }
 

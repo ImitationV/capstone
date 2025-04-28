@@ -7,6 +7,8 @@ import GoalsPage from './components/GoalsPage';
 import TransactionsPage from './components/TransactionsPage';
 import ChatbotPopup from './components/ChatbotPopup';
 
+
+
 function App() {
     return (
         <Router>

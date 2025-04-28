@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "vite"
+
+
   },
   "dependencies": {
     "formik": "^2.4.6",
