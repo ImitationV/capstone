@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import '../styles/transactions.css';
+import ChatbotPopup from './ChatbotPopup';
+
 
 function TransactionsPage() {
   const [transactionType, setTransactionType] = useState('');
@@ -47,7 +49,7 @@ function TransactionsPage() {
   };
 
   return (
-    <div className="transactions-page">
+    <><div className="transactions-page">
       <div className="transaction-container">
         <h1>Transaction</h1>
         <form onSubmit={handleSubmit}>
@@ -104,7 +106,8 @@ function TransactionsPage() {
           <button type="submit" className="submit-button">Submit</button>
         </form>
       </div>
-    </div>
+    </div><ChatbotPopup /></>
+
   );
 }
 
