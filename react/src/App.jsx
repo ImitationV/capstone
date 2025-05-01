@@ -5,7 +5,7 @@ import LoginPage from './components/LoginPage';
 import OverviewPage from './components/OverviewPage';
 import GoalsPage from './components/GoalsPage';
 import TransactionsPage from './components/TransactionsPage';
-// import ChatbotPopup from './components/ChatbotPopup';
+import ChatbotPopup from './components/ChatbotPopup';
 
 
 

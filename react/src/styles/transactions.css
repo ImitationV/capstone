@@ -1,24 +1,24 @@
+/* transactions.css */
 .transactions-page {
-  font-family: "Arial", sans-serif;
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background-color: #f4f7f9;
+  background-color: #f4f6f8;
 }
 
 .transaction-container {
-  background-color: white;
+  background-color: #fff;
   padding: 30px;
   border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   width: 400px;
 }
 
-h1 {
+h2 {
   text-align: center;
-  margin-bottom: 25px;
   color: #333;
+  margin-bottom: 20px;
 }
 
 .form-group {
@@ -29,32 +29,55 @@ label {
   display: block;
   margin-bottom: 8px;
   color: #555;
+  font-weight: bold;
 }
 
-.select-input {
+input[type="date"],
+input[type="time"],
+input[type="number"],
+select {
   width: 100%;
-  padding: 12px;
-  border: 1px solid #ddd;
+  padding: 10px;
+  border: 1px solid #ccc;
   border-radius: 4px;
+  box-sizing: border-box;
   font-size: 16px;
+}
+
+select {
   appearance: none;
-  background: white
-    url('data:image/svg+xml;utf8,<svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><polyline points="6 9 12 15 18 9"></polyline></svg>')
-    no-repeat right 8px center; /* Dropdown icon */
-  background-size: 16px;
+  background-image: url('data:image/svg+xml;charset=UTF-8,<svg fill="%23343a40" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M1.553 6.776a.5.5 0 0 1 .67-.223l5.165 3.33a.5.5 0 0 1 .258.369l5.165-3.33a.5.5 0 0 1 .67.223v2.19a.5.5 0 0 1-.746.439L8 13.03l-5.929-3.825a.5.5 0 0 1-.746-.439v-2.19z"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
 }
 
-.select-input:focus {
-  outline: none;
-  border-color: var(--pumpkin);
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+.radio-group {
+  display: flex;
+  gap: 15px;
+  align-items: center;
 }
 
-.submit-button {
-  width: 100%;
-  padding: 12px;
-  background-color: var(--pumpkin);
-  color: white;
+.radio-group label {
+  display: inline-flex;
+  align-items: center;
+  font-weight: normal;
+  color: #555;
+}
+
+.radio-group input[type="radio"] {
+  margin-right: 5px;
+}
+
+.button-group {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.create-button,
+.close-button {
+  padding: 10px 20px;
   border: none;
   border-radius: 4px;
   font-size: 16px;
@@ -62,12 +85,30 @@ label {
   transition: background-color 0.3s ease;
 }
 
-.submit-button:hover {
-  background-color: #c25f22;
+.create-button {
+  background-color: #007bff;
+  color: white;
+}
+
+.create-button:hover {
+  background-color: #0056b3;
+}
+
+.close-button {
+  background-color: #6c757d;
+  color: white;
+}
+
+.close-button:hover {
+  background-color: #545b62;
 }
 
 .error {
-  color: red;
-  margin-bottom: 15px;
-  text-align: center;
+  color: #dc3545;
+  margin-bottom: 10px;
+}
+
+.success {
+  color: #28a745;
+  margin-bottom: 10px;
 }
