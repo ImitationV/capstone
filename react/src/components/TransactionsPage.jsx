@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import '../styles/transactions.css'; 
 import { createClient } from '@supabase/supabase-js';
 import ChatbotPopup from './ChatbotPopup';
+
 // Initialize Supabase client 
 const supabaseUrl = 'https://idwneflrvwwcwkjlwbkz.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlkd25lZmxydnd3Y3dramx3Ymt6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE1ODM1NjcsImV4cCI6MjA1NzE1OTU2N30.RmyMAOfIS1h30ne2E4AT1RB-XWpjA2DN0Bo4FW-9bmQ';
@@ -40,15 +41,7 @@ function TransactionsPage() {
   const handlePaymentModeChange = (event) => {
     setPaymentMode(event.target.value);
   };
-  /*
-  // Random user ID generator function
-  const getRandomInt = (min, max) => {
-    min = Math.ceil(min);
-    max = Math.floor(max);
-    return Math.floor(Math.random() * (max - min + 1)) + min; 
-  };
-  */
- 
+  
   // Function to handle form submission
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -67,8 +60,7 @@ function TransactionsPage() {
       category: category, // Stores selected category
       amount: parseFloat(amount), // Stores the amount
       payment_mode: paymentMode.toLowerCase().replace(' ', ' '), // Stores payment method
-      //user_id: getRandomInt(900000,999999), // Generate a random user ID between 900000 and 999999
-      user_id: 2, // usman's user ID
+      user_id: 1, // test user ID [TESTING PURPOSES]
     };
 
     try {

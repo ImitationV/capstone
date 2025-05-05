@@ -1,47 +1,67 @@
 .goals-page-container {
-  padding: 200px;
   display: flex;
-  flex-direction: column;
+  justify-content: center;
   align-items: center;
-}
-
-.goals-page-container h2 {
-  margin-bottom: 20px;
-  color: #2d3734;
-  margin-bottom: 100px;
+  min-height: 100vh;
+  background-color: #f8f9fa;
 }
 
 .goals-form {
-  display: flex;
-  flex-direction: column;
-  width: 250px;
+  background-color: #fff;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  width: 400px;
+  max-width: 90%;
+}
+
+.goals-form h2 {
+  text-align: center;
+  margin-bottom: 50px;
+  margin-right: 20px;
+  color: #343a40;
 }
 
 .form-group {
-  margin-bottom: 15px;
-  display: flex;
-  flex-direction: column;
+  margin-bottom: 20px;
 }
 
 .form-group label {
   display: block;
   margin-bottom: 5px;
-  color: #2d3734;
-  text-align: left;
+  color: #495057;
+  font-weight: bold;
 }
 
-.form-group input[type="number"] {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group input[type="date"],
+.form-group select {
+  width: calc(100% - 12px);
+  padding: 8px;
+  border: 1px solid #ced4da;
   border-radius: 4px;
   font-size: 1rem;
 }
 
+.form-group select {
+  appearance: none;
+  background-image: url('data:image/svg+xml;charset=UTF-8,<svg fill="%23495057" viewBox="0 0 16 16"><path d="M1.5 5.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5zM2 6h12v4H2z"/><path d="M8 10a.5.5 0 0 1-.5-.5V6.707L5.354 8.854a.5.5 0 1 1-.708-.708l3-3a.5.5 0 0 1 .708 0l3 3a.5.5 0 1 1-.708.708L8.5 6.707V9.5a.5.5 0 0 1-.5.5"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 12px;
+}
+
+.form-group .error-message {
+  color: #dc3545;
+  font-size: 0.9rem;
+  margin-top: 5px;
+}
+
 .submit-button {
-  background-color: #74a580;
+  background-color: #007bff;
   color: white;
-  padding: 12px 20px;
+  padding: 10px 15px;
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -50,12 +70,14 @@
 }
 
 .submit-button:hover {
-  background-color: #5a8065;
+  background-color: #0056b3;
 }
 
-.error-message {
-  color: red;
-  font-size: 0.9rem;
-  margin-top: 5px;
-  text-align: left;
+/* Styles for radio buttons */
+.form-group label span {
+  margin-right: 10px;
+}
+
+.form-group input[type="radio"] {
+  margin-right: 5px;
 }
