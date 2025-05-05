@@ -1,3 +1,14 @@
 .env
 node_modules
 __pycache__
+dist
+coverage
+.DS_Store
+.vscode
+.idea
+*.log
+*.tmp
+*.swp
+*.bak
+*.orig
+*.lock
