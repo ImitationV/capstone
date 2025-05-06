@@ -102,8 +102,17 @@ Before you begin, ensure you have the following installed:
 
 Once the dependencies are installed, you can start the development server:
 
-**Using npm:**
+
+**Frontend: Using npm in 1 Terminal**
 
 ```bash
 npm run dev
+```
+
+**Backend: Using uvicorn in another Terminal**
+
+Make sure that this command is run under backend folder
+
+```bash
+run "uvicorn main:app --reload"
 ```
