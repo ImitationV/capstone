@@ -12,115 +12,77 @@ from sklearn.metrics import root_mean_squared_error
 
 def fetch_daily_data(symbol):
     """
-    Fetches daily stock data for a given symbol over the last 5 years
+    Fetches daily stock data for a given symbol over the last 2.5 years
     @return: pandas DF containing daily stock data
     """
     today = datetime.now().strftime("%Y-%m-%d")
-    # this is the date 2.5 years ago 
     two_years_ago = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=2.5*365)).strftime("%Y-%m-%d")
-    # yf returns a dataframe with OHLCV (Open, High, Low, Close, Volume) data
     df = yf.download(symbol, start=two_years_ago, end=today)
-
-
     return df
 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     '''
-    Enhanced feature engineering with additional technical indicators
+    Optimized feature engineering with essential technical indicators
     @param df: pandas DF containing stock data
     @return: pandas DF containing engineered features
     '''
-
+    # Use vectorized operations for basic indicators
+    df['SMA200'] = df['Close'].rolling(window=200).mean()
+    df['SMA50'] = df['Close'].rolling(window=50).mean()
+    df['EMA20'] = df['Close'].ewm(span=20).mean()
     
-
-    # Trend Indicators
-    df['SMA200'] = TA.SMA(df, 200)
-    df['SMA50'] = TA.SMA(df, 50)
-    df['EMA20'] = TA.EMA(df, 20)
-    df['MACD'] = TA.MACD(df)['MACD']
-    df['MACD_SIGNAL'] = TA.MACD(df)['SIGNAL']    
-    
-    # Momentum indicators
-    df['Williams'] = TA.WILLIAMS(df)
-    df['STOCH'] = TA.STOCH(df)
+    # Calculate essential indicators
     df['RSI'] = TA.RSI(df)
-    df['STOCH_SIGNAL'] = TA.STOCHD(df)
-    df['ROC'] = TA.ROC(df)  # Rate of Change
+    df['MACD'] = TA.MACD(df)['MACD']
+    df['MACD_SIGNAL'] = TA.MACD(df)['SIGNAL']
     
-    # Volume-based indicators
-    df['OBV'] = TA.OBV(df)  # On Balance Volume
-    df['ADL'] = TA.ADL(df)  # Accumulation/Distribution Line
-    
-    # Volatility indicators
-    df['ATR'] = TA.ATR(df)
-    df['ATR_PERCENT'] = df['ATR'] / df['Close'] * 100
-    df['BBWIDTH'] = TA.BBWIDTH(df)
-
-    # Price patterns
-    df['Higher_Highs'] = df['High'] > df['High'].shift(1)
-    df['Lower_Lows'] = df['Low'] < df['Low'].shift(1)
-
-    
-    # Drop rows with NaN values created by indicators
-    df = df.iloc[200:, :]  # Keep the 200-day requirement for SMA
+    # Drop rows with NaN values
+    df = df.iloc[200:, :]
     df['Target'] = df.Close.shift(-1)
     df.dropna(inplace=True)
     
     return df
 
-def train_test_split(data: pd.DataFrame,perc: float) -> tuple[np.ndarray, np.ndarray]:
+def train_test_split(data: pd.DataFrame, perc: float) -> tuple[np.ndarray, np.ndarray]:
     '''
     Splits data into train and test sets
     @param data: pandas DF containing stock data
     @param perc: percentage of data for test set
     @return: train set, test set
     '''
-    # the data is converted to a numpy array
     ret = data.values
-    # the number of rows in the data is calculated 
-    n = int(len(data) *  (1-perc)) 
-
-    # the data is split into training and test sets
+    n = int(len(data) * (1-perc))
     return ret[:n], ret[n:]
 
-def xgb_predict(train: pd.DataFrame, val: pd.DataFrame) -> float:
+def xgb_predict(train: pd.DataFrame, val: pd.DataFrame, model=None) -> tuple[float, XGBRegressor]:
     '''
-    Predicts closing price of stock using XGBoost Regressor 
-    @param train: pandas DF containing training data 
-    @param val: pandas DF as a validation set 
-    @return: float prediction
-
-    ---
-    - First the training data is converted to a numpy array 
-    - Then the features and target values are separated 
-    - Then the model is initialized and trained on the training data 
-    - Then the validation set is converted to a numpy array and reshaped into a 2D array with 1 row
-    - Then the model is used to make a prediction on the validation set 
-    - The prediction is then returned as a float
+    Optimized prediction function that reuses the trained model
+    @param train: pandas DF containing training data
+    @param val: pandas DF as a validation set
+    @param model: Optional pre-trained model
+    @return: tuple of (prediction, model)
     '''
-    # Convert to numpy arrays
-    train = np.array(train)
-    val = np.array(val)
+    if model is None:
+        train = np.array(train)
+        val = np.array(val)
+        
+        X = train[:,:-1]
+        y = train[:,-1]
+        
+        model = XGBRegressor(
+            objective='reg:squarederror',
+            n_estimators=500,
+            learning_rate=0.1,
+            colsample_bytree=0.7,
+            max_depth=3,
+            gamma=1,
+            n_jobs=-1
+        )
+        model.fit(X, y)
     
-    # Separate features and target
-    X = train[:,:-1]  # All columns except last are features
-    y = train[:,-1]   # Last column is target
-    
-    # Initialize and train model
-    model = XGBRegressor(
-        objective='reg:squarederror',
-        n_estimators=750,
-        learning_rate=0.05,
-        colsample_bytree=0.7,
-        max_depth=3,
-        gamma=1
-    )
-    model.fit(X, y)
-    
-    # Make prediction
     val = val.reshape(1, -1)
     pred = model.predict(val)
-    return pred[0]
+    return pred[0], model
 
 def mape(actual, pred) -> float:
     ''' 
@@ -136,29 +98,25 @@ def mape(actual, pred) -> float:
 
 def validate(data, perc):
     '''
-    Validates the model by predicting the closing price of the stock for each day in the test set 
-    @param data: df containing stock data 
-    @param perc: percentage of data for test set 
-    @return: float error, float MAPE, array of actual target values, array of predicted values
+    Optimized validation function that reuses the trained model
+    @param data: df containing stock data
+    @param perc: percentage of data for test set
+    @return: tuple of (error, MAPE, actual values, predictions)
     '''
     predictions = []
     train, test = train_test_split(data, perc)
-    history = train.copy()  # Use copy to avoid modifying original
+    history = train.copy()
     
-    # Iterate through test set
+    model = None
     for i in range(len(test)):
-        # Get features and target for current timestep
-        X_test = test[i,:-1].reshape(1, -1)  # Reshape for single prediction
+        X_test = test[i,:-1].reshape(1, -1)
         y_test = test[i,-1]
         
-        # Make prediction using all features
-        pred = xgb_predict(history, X_test)
+        pred, model = xgb_predict(history, X_test, model)
         predictions.append(pred)
         
-        # Add current observation to history
         history = np.vstack([history, test[i]])
     
-    # Calculate performance metrics
     error = root_mean_squared_error(test[:,-1], predictions)
     MAPE = mape(test[:,-1], predictions)
     
@@ -247,28 +205,28 @@ def generate_trading_recommendations(df: pd.DataFrame, risk_summary: dict, predi
     # Get latest data
     latest = df.iloc[-1]
     
-    # Define risk tolerance thresholds
+    # Define risk tolerance thresholds with balanced values
     risk_thresholds = {
         'conservative': {
-            'max_volatility': 0.20,
-            'min_sharpe': 1.0,
-            'max_var': 0.02,
-            'min_return': 0.05,
-            'stop_loss': -0.05  # 5% stop loss
+            'max_volatility': 0.35,
+            'min_sharpe': 0.5,
+            'max_var': 0.04,
+            'min_return': 0.03,
+            'stop_loss': -0.08
         },
         'moderate': {
-            'max_volatility': 0.30,
-            'min_sharpe': 0.5,
-            'max_var': 0.03,
-            'min_return': 0.03,
-            'stop_loss': -0.08  # 8% stop loss
+            'max_volatility': 0.50,
+            'min_sharpe': 0.2,
+            'max_var': 0.06,
+            'min_return': 0.02,
+            'stop_loss': -0.12
         },
         'aggressive': {
-            'max_volatility': 0.40,
-            'min_sharpe': 0.0,
-            'max_var': 0.04,
-            'min_return': 0.02,
-            'stop_loss': -0.12  # 12% stop loss
+            'max_volatility': 0.70,
+            'min_sharpe': -0.2,
+            'max_var': 0.08,
+            'min_return': 0.01,
+            'stop_loss': -0.15
         }
     }
     
@@ -283,122 +241,191 @@ def generate_trading_recommendations(df: pd.DataFrame, risk_summary: dict, predi
         'risk_assessment': [],
         'technical_signals': [],
         'prediction_signals': [],
-        'position_analysis': []  # New section for position-specific analysis
+        'position_analysis': []
     }
     
-    # 1. Risk Assessment
+    # 1. Risk Assessment with balanced scoring
     risk_score = 0
+    
+    # Volatility scoring with trend consideration
+    vol_trend = df['Volatility_20d'].iloc[-5:].mean() - df['Volatility_20d'].iloc[-10:-5].mean()
     if risk_summary['Current_Volatility_20d'] < thresholds['max_volatility']:
         risk_score += 1
         recommendation['risk_assessment'].append("Volatility within acceptable range")
     else:
-        risk_score -= 1
-        recommendation['risk_assessment'].append("High volatility - exercise caution")
+        if vol_trend < 0:  # Volatility is decreasing
+            risk_score -= 0.3
+            recommendation['risk_assessment'].append("Elevated but decreasing volatility")
+        else:
+            risk_score -= 0.5
+            recommendation['risk_assessment'].append("Elevated volatility - monitor closely")
     
+    # Sharpe Ratio with trend consideration
+    sharpe_trend = df['Sharpe_Ratio'].iloc[-5:].mean() - df['Sharpe_Ratio'].iloc[-10:-5].mean()
     if risk_summary['Sharpe_Ratio'] > thresholds['min_sharpe']:
         risk_score += 1
         recommendation['risk_assessment'].append("Good risk-adjusted returns")
+    else:
+        if sharpe_trend > 0:  # Sharpe ratio is improving
+            risk_score -= 0.3
+            recommendation['risk_assessment'].append("Risk-adjusted returns improving")
+        else:
+            risk_score -= 0.5
+            recommendation['risk_assessment'].append("Below target risk-adjusted returns")
     
+    # VaR with market context
     if abs(risk_summary['VaR_95']) < thresholds['max_var']:
         risk_score += 1
         recommendation['risk_assessment'].append("Value at Risk within acceptable range")
+    else:
+        if abs(risk_summary['VaR_95']) < abs(df['VaR_95'].mean()):  # Better than average
+            risk_score -= 0.3
+            recommendation['risk_assessment'].append("VaR elevated but better than average")
+        else:
+            risk_score -= 0.5
+            recommendation['risk_assessment'].append("VaR above acceptable range")
     
-    # 2. Technical Analysis Signals
+    # 2. Enhanced Technical Analysis
     tech_score = 0
     
-    # RSI signals
+    # RSI with trend consideration
+    rsi_trend = df['RSI'].iloc[-5:].mean() - df['RSI'].iloc[-10:-5].mean()
     if latest['RSI'] < 30:
-        tech_score += 1
+        tech_score += 1.5 if rsi_trend > 0 else 1  # Extra weight if RSI is improving
         recommendation['technical_signals'].append("Oversold condition (RSI)")
     elif latest['RSI'] > 70:
-        tech_score -= 1
+        tech_score -= 1.5 if rsi_trend < 0 else 1  # Extra weight if RSI is decreasing
         recommendation['technical_signals'].append("Overbought condition (RSI)")
+    elif 40 <= latest['RSI'] <= 60:  # Neutral zone
+        tech_score += 0.5
+        recommendation['technical_signals'].append("RSI in neutral zone")
     
-    # MACD signals
+    # MACD with trend strength
+    macd_trend = df['MACD'].iloc[-5:].mean() - df['MACD'].iloc[-10:-5].mean()
     if latest['MACD'] > latest['MACD_SIGNAL']:
-        tech_score += 1
+        tech_score += 1.5 if macd_trend > 0 else 1  # Extra weight if trend is strengthening
         recommendation['technical_signals'].append("Positive MACD crossover")
     else:
-        tech_score -= 1
+        tech_score -= 1.5 if macd_trend < 0 else 1
         recommendation['technical_signals'].append("Negative MACD crossover")
     
-    # Moving Average signals
+    # Moving Average analysis with multiple timeframes
+    ma_score = 0
     if latest['Close'] > latest['SMA200']:
-        tech_score += 1
+        ma_score += 1
         recommendation['technical_signals'].append("Price above 200-day SMA")
+    if latest['Close'] > latest['SMA50']:
+        ma_score += 0.5
+        recommendation['technical_signals'].append("Price above 50-day SMA")
+    tech_score += ma_score
     
-    # 3. Prediction Analysis
+    # 3. Enhanced Prediction Analysis
     pred_score = 0
     current_price = latest['Close']
     
-    # Calculate average predicted return
+    # Calculate average predicted return with trend consideration
     avg_prediction = np.mean(predictions[-5:])
     predicted_return = (avg_prediction - current_price) / current_price
     
+    # Consider prediction stability
+    pred_volatility = np.std(predictions[-5:]) / np.mean(predictions[-5:])
+    pred_trend = predictions[-1] - predictions[-5]
+    
     if predicted_return > thresholds['min_return']:
         pred_score += 1
-        recommendation['prediction_signals'].append(
-            f"Short-term prediction shows {predicted_return:.1%} potential return"
-        )
+        if pred_volatility < 0.02:  # Low volatility in predictions
+            pred_score += 0.5
+            recommendation['prediction_signals'].append(
+                f"Stable positive prediction: {predicted_return:.1%} potential return"
+            )
+        else:
+            recommendation['prediction_signals'].append(
+                f"Short-term prediction shows {predicted_return:.1%} potential return"
+            )
     
-    # Add trend analysis
+    # Trend analysis with momentum
     if predictions[-1] > predictions[-2]:
         pred_score += 1
-        recommendation['prediction_signals'].append("Upward prediction trend")
+        if pred_trend > 0:  # Stronger upward trend
+            pred_score += 0.5
+            recommendation['prediction_signals'].append("Strong upward prediction trend")
+        else:
+            recommendation['prediction_signals'].append("Upward prediction trend")
     else:
         pred_score -= 1
-        recommendation['prediction_signals'].append("Downward prediction trend")
+        if pred_trend < 0:  # Stronger downward trend
+            pred_score -= 0.5
+            recommendation['prediction_signals'].append("Strong downward prediction trend")
+        else:
+            recommendation['prediction_signals'].append("Downward prediction trend")
     
-    # 4. Position Analysis
+    # 4. Position Analysis with market context
     if owns_stock:
-        # Check stop loss
+        # Check stop loss with trend consideration
         recent_return = (current_price - df['Close'].iloc[-2]) / df['Close'].iloc[-2]
         if recent_return < thresholds['stop_loss']:
-            recommendation['position_analysis'].append(
-                f"Stop loss triggered: Current loss ({recent_return:.1%}) exceeds threshold ({thresholds['stop_loss']:.1%})"
-            )
-            pred_score -= 2
+            if recent_return > df['Daily_Returns'].mean():  # Better than average daily return
+                recommendation['position_analysis'].append(
+                    f"Stop loss triggered but better than average: {recent_return:.1%}"
+                )
+                pred_score -= 1.5
+            else:
+                recommendation['position_analysis'].append(
+                    f"Stop loss triggered: {recent_return:.1%}"
+                )
+                pred_score -= 2
         
-        # Check if holding is still profitable
+        # Check if holding is still profitable with trend context
         if predicted_return < 0:
-            recommendation['position_analysis'].append(
-                "Negative future return predicted, consider taking profits"
-            )
-            pred_score -= 1
+            if pred_trend > 0:  # Improving trend
+                recommendation['position_analysis'].append(
+                    "Negative return predicted but trend improving"
+                )
+                pred_score -= 0.5
+            else:
+                recommendation['position_analysis'].append(
+                    "Negative future return predicted, consider taking profits"
+                )
+                pred_score -= 1
         else:
             recommendation['position_analysis'].append(
                 "Positive future return predicted, consider holding position"
             )
     else:
-        # Entry analysis for non-holders
+        # Enhanced entry analysis
         if predicted_return > thresholds['min_return'] and tech_score > 0:
-            recommendation['position_analysis'].append(
-                "Good entry point: positive technical signals and predicted returns"
-            )
+            if pred_volatility < 0.02 and macd_trend > 0:  # Stable predictions and strong trend
+                recommendation['position_analysis'].append(
+                    "Strong entry point: stable predictions and positive technical signals"
+                )
+            else:
+                recommendation['position_analysis'].append(
+                    "Good entry point: positive technical signals and predicted returns"
+                )
         else:
             recommendation['position_analysis'].append(
                 "Wait for better entry point"
             )
     
-    # 5. Generate Final Recommendation
-    total_score = risk_score + tech_score + pred_score
-    max_possible_score = 3 + 3 + 2  # risk + tech + predictions
+    # 5. Generate Final Recommendation with balanced weighting
+    total_score = (risk_score * 1.2) + (tech_score * 1.0) + (pred_score * 0.8)  # Adjusted weights
+    max_possible_score = (3 * 1.2) + (3 * 1.0) + (2 * 0.8)  # Adjusted max score
     confidence = (total_score / max_possible_score) * 100
     
-    # Simplified action logic based on ownership status
+    # Modified action logic with trend consideration
     if owns_stock:
-        if confidence < -30:  # More negative confidence needed to trigger sell
+        if confidence < -30 and pred_trend < 0:  # Need both negative confidence and trend
             action = "SELL"
-            recommendation['reasoning'].append("Negative indicators suggest exiting position")
+            recommendation['reasoning'].append("Negative indicators and trend suggest exiting position")
         else:
             action = "HOLD"
             recommendation['reasoning'].append("Current indicators support maintaining position")
     else:
-        if confidence > 40:  # Strong positive confidence needed for buy
+        if confidence >= 0 and pred_trend > 0:  # Need both positive confidence and trend
             action = "BUY"
-            recommendation['reasoning'].append("Strong positive indicators suggest entering position")
+            recommendation['reasoning'].append("Positive indicators and trend suggest entering position")
         else:
-            action = "NO ACTION"  # Changed from HOLD to NO ACTION
+            action = "NO ACTION"
             recommendation['reasoning'].append("Current indicators suggest waiting for better entry")
     
     recommendation['action'] = action
@@ -411,43 +438,240 @@ def print_recommendation(recommendation: dict):
     Prints the trading recommendation in a formatted way
     @param recommendation: Dictionary containing recommendation details
     '''
-    print("\n=== Trading Recommendation ===")
-    print(f"Action: {recommendation['action']}")
-    print(f"Confidence: {recommendation['confidence']:.1f}%")
+    print("\n" + "="*80)
+    print("STOCK TRADING RECOMMENDATION")
+    print("="*80)
     
-    print("\nRisk Assessment:")
+    print(f"\nRECOMMENDATION: {recommendation['action']}")
+    print(f"Confidence Level: {recommendation['confidence']:.1f}%")
+    
+    # Simple confidence explanation
+    if recommendation['confidence'] >= 0:
+        print("→ This is a positive signal, suggesting potential for growth")
+    else:
+        print("→ This is a cautious signal, suggesting waiting for better conditions")
+    
+    print("\n" + "-"*80)
+    print("MARKET ANALYSIS")
+    print("-"*80)
+    
+    print("\nTechnical Indicators (What the charts are telling us):")
+    # Dictionary of technical signal explanations in simple terms
+    signal_explanations = {
+        "Oversold condition (RSI)": "The stock price has dropped significantly and might be a good time to buy",
+        "Overbought condition (RSI)": "The stock price has risen significantly and might be due for a pullback",
+        "RSI in neutral zone": "The stock is trading in a balanced range, neither overbought nor oversold",
+        "Positive MACD crossover": "The stock is showing signs of upward momentum and potential growth",
+        "Negative MACD crossover": "The stock is showing signs of downward momentum and potential decline",
+        "Price above 200-day SMA": "The stock is in a long-term uptrend, which is generally positive",
+        "Price above 50-day SMA": "The stock is showing positive recent performance"
+    }
+    
+    for item in recommendation['technical_signals']:
+        print(f"\n• {item}")
+        if item in signal_explanations:
+            print(f"  → {signal_explanations[item]}")
+    
+    print("\n" + "-"*80)
+    print("PREDICTION OUTLOOK")
+    print("-"*80)
+    
+    print("\nWhat to Expect:")
+    for item in recommendation['prediction_signals']:
+        print(f"• {item}")
+    
+    print("\n" + "-"*80)
+    print("RISK ASSESSMENT")
+    print("-"*80)
+    
+    print("\nCurrent Market Conditions:")
     for item in recommendation['risk_assessment']:
         print(f"• {item}")
     
-    print("\nTechnical Signals:")
-    for item in recommendation['technical_signals']:
+    print("\nRisk Metrics (In Simple Terms):")
+    risk_explanations = {
+        "Volatility": "How much the stock price moves up and down - higher means more risk",
+        "Sharpe Ratio": "How good the returns are compared to the risk taken - higher is better",
+        "Sortino Ratio": "How good the returns are compared to the bad days - higher is better",
+        "VaR (Value at Risk)": "The worst-case scenario for potential losses",
+        "Maximum Drawdown": "The biggest price drop the stock has experienced"
+    }
+    
+    for metric, explanation in risk_explanations.items():
+        print(f"• {metric}: {explanation}")
+    
+    print("\n" + "-"*80)
+    print("POSITION ADVICE")
+    print("-"*80)
+    
+    print("\nWhat This Means For You:")
+    for item in recommendation['position_analysis']:
         print(f"• {item}")
     
-    print("\nPrediction Signals:")
-    for item in recommendation['prediction_signals']:
-        print(f"• {item}")
+    print("\n" + "="*80)
+    print("SUMMARY")
+    print("="*80)
+    
+    # Create a simple summary based on the action and confidence
+    if recommendation['action'] == "BUY":
+        print("\nThe overall analysis suggests this might be a good time to consider buying:")
+        print("• Technical indicators are showing positive signals")
+        print("• Risk levels are within acceptable ranges")
+        print("• Future predictions are optimistic")
+    elif recommendation['action'] == "SELL":
+        print("\nThe overall analysis suggests this might be a good time to consider selling:")
+        print("• Technical indicators are showing negative signals")
+        print("• Risk levels are elevated")
+        print("• Future predictions are concerning")
+    elif recommendation['action'] == "HOLD":
+        print("\nThe overall analysis suggests holding your current position:")
+        print("• Current indicators are mixed but not strongly negative")
+        print("• It might be better to wait for clearer signals")
+    else:  # NO ACTION
+        print("\nThe overall analysis suggests waiting for better conditions:")
+        print("• Current market conditions are unclear")
+        print("• It's better to wait for more positive signals")
+    
+    print("="*80 + "\n")
+
+def predict_future(df: pd.DataFrame, days: int = 10) -> tuple[list, list]:
+    '''
+    Optimized future predictions with batched processing
+    @param df: DataFrame containing historical data and features
+    @param days: Number of days to predict into the future
+    @return: Tuple of (predictions list, dates list)
+    '''
+    predictions = []
+    dates = []
+    current_data = df.iloc[-1:].copy()
+    last_date = df.index[-1]
+    
+    # Train model once
+    model = XGBRegressor(
+        objective='reg:squarederror',
+        n_estimators=500,
+        learning_rate=0.1,
+        colsample_bytree=0.7,
+        max_depth=3,
+        gamma=1,
+        n_jobs=-1
+    )
+    
+    X = df.iloc[:, :-1]
+    y = df.iloc[:, -1]
+    model.fit(X, y)
+    
+    # Process predictions in batches
+    for i in range(0, days, 5):
+        batch_days = min(5, days - i)
+        batch_predictions = []
+        
+        for j in range(batch_days):
+            next_date = last_date + timedelta(days=i+j+1)
+            dates.append(next_date)
+            
+            features = current_data.iloc[:, :-1]
+            pred = model.predict(features)[0]
+            batch_predictions.append(pred)
+            
+            # Update current data
+            current_data['Close'] = pred
+            current_data['Target'] = pred
+            
+            # Update only essential indicators
+            current_data['SMA200'] = (df['Close'].iloc[-199:].sum() + pred) / 200
+            current_data['SMA50'] = (df['Close'].iloc[-49:].sum() + pred) / 50
+            current_data['EMA20'] = pred * 0.1 + current_data['EMA20'].iloc[-1] * 0.9
+        
+        predictions.extend(batch_predictions)
+    
+    return predictions, dates
+
+def display_future_predictions(predictions: list, dates: list, current_price: float):
+    '''
+    Displays detailed future predictions in the terminal
+    @param predictions: List of predicted prices
+    @param dates: List of dates for predictions
+    @param current_price: Current stock price
+    '''
+    print("\n" + "="*80)
+    print("10-DAY PRICE PREDICTION FORECAST")
+    print("="*80)
+    
+    # Print header
+    print(f"\nCurrent Price: ${current_price:.2f}")
+    print("\nDaily Predictions:")
+    print("-"*80)
+    print(f"{'Day':<8} {'Predicted Price':<15} {'Change':<10} {'% Change':<10}")
+    print("-"*80)
+    
+    # Print daily predictions
+    for i, (date, price) in enumerate(zip(dates, predictions)):
+        change = price - current_price
+        pct_change = (change / current_price) * 100
+        print(f"Day {i+1:<3} ${price:<14.2f} {change:>+8.2f} {pct_change:>+8.2f}%")
+    
+    # Print trend analysis
+    print("\nTrend Analysis:")
+    print("-"*80)
+    overall_change = predictions[-1] - current_price
+    overall_pct = (overall_change / current_price) * 100
+    
+    if overall_change > 0:
+        trend = "BULLISH"
+    elif overall_change < 0:
+        trend = "BEARISH"
+    else:
+        trend = "NEUTRAL"
+    
+    print(f"Overall Trend: {trend}")
+    print(f"10-Day Price Target: ${predictions[-1]:.2f}")
+    print(f"Expected Change: {overall_change:+.2f} ({overall_pct:+.2f}%)")
+    
+    # Calculate volatility of predictions
+    pred_volatility = np.std(predictions) / np.mean(predictions) * 100
+    print(f"Predicted Volatility: {pred_volatility:.2f}%")
+    
+    print("="*80 + "\n")
 
 def main():
-    # Fetch data
+    # Fetch data with reduced time range
     df = fetch_daily_data('AAPL')
     df.columns = df.columns.droplevel(1)
     
-    # Engineer features with enhanced indicators
-    df = engineer_features(df)
-  
-    # data split
-    train, test = train_test_split(df,.7)
+    # Convert to float32 for memory efficiency
+    for col in df.select_dtypes(include=['float64']).columns:
+        df[col] = df[col].astype('float32')
     
-    # Initialize the model
-    xgb_predict(train, test[0, :-1])
+    # Engineer features with optimized indicators
+    df = engineer_features(df)
+    
+    # Split data
+    train, test = train_test_split(df, 0.7)
+    
+    # Initialize model once
+    model = XGBRegressor(
+        objective='reg:squarederror',
+        n_estimators=500,
+        learning_rate=0.1,
+        colsample_bytree=0.7,
+        max_depth=3,
+        gamma=1,
+        n_jobs=-1
+    )
+    
+    # Train model once
+    X_train = train[:,:-1]
+    y_train = train[:,-1]
+    model.fit(X_train, y_train)
     
     # Validate and get predictions
     rmse, MAPE, y, pred = validate(df, 0.7)
-    pred = np.array(pred)
+    pred = np.array(pred, dtype='float32')
     test_pred = np.c_[test, pred]
     
-    # Create visualization DataFrame with correct column names
-    columns = list(df.columns) + ['Pred']  # Use actual column names from df
+    # Create visualization DataFrame efficiently
+    columns = list(df.columns) + ['Pred']
     df_TP = pd.DataFrame(test_pred, columns=columns[:test_pred.shape[1]])
     
     # Prepare data for plotting
@@ -455,27 +679,57 @@ def main():
     df_dates = df[['Date', 'Target', 'Close']]
     df_TP = pd.merge(df_TP, df_dates, on='Target', how='left')
     df_TP = df_TP.sort_values(by='Date').reset_index(drop=True)
-
-    print(df_TP['Date'].head().dtype)
     
-    # Create visualization
-    plt.figure(figsize=(15, 6))
-    plt.title("AAPL Price Predictions", fontsize=18)
-    plt.plot(df_TP['Date'], df_TP['Target'], label='Next Day Actual Close Price', color='cyan')
-    plt.plot(df_TP['Date'], df_TP['Pred'], label='Predicted Price', color='green', alpha=1)
-    plt.xlabel('Date', fontsize=18)
-    plt.legend(loc='upper left')
-    plt.ylabel('Price USD', fontsize=18)
+    # Get future predictions (reduced to 10 days)
+    df_indexed = df.set_index('Date')
+    future_predictions, future_dates = predict_future(df_indexed, days=10)
+    
+    # Display predictions
+    current_price = df['Close'].iloc[-1]
+    display_future_predictions(future_predictions, future_dates, current_price)
+    
+    # Create figure with two subplots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 12))
+    
+    # Plot 1: Historical Prices
+    ax1.plot(df['Date'], df['Close'], label='Historical Close Price', color='blue')
+    ax1.set_title('AAPL Historical Prices', fontsize=18)
+    ax1.set_xlabel('Date', fontsize=14)
+    ax1.set_ylabel('Price USD', fontsize=14)
+    ax1.legend(loc='upper left')
+    ax1.grid(True)
+    
+    # Plot 2: Future Predictions
+    days_into_future = range(1, len(future_predictions) + 1)
+    ax2.plot(days_into_future, future_predictions, label='Predicted Price', color='red', marker='o')
+    ax2.set_title('AAPL 10-Day Price Predictions', fontsize=18)
+    ax2.set_xlabel('Days into Future', fontsize=14)
+    ax2.set_ylabel('Predicted Price (USD)', fontsize=14)
+    ax2.legend(loc='upper left')
+    ax2.grid(True)
+    
+    # Add horizontal line for current price
+    ax2.axhline(y=current_price, color='blue', linestyle='--', label=f'Current Price (${current_price:.2f})')
+    
+    # Add price annotations
+    ax2.annotate(f'${future_predictions[0]:.2f}', 
+                xy=(1, future_predictions[0]),
+                xytext=(1, future_predictions[0] + 2),
+                ha='center')
+    ax2.annotate(f'${future_predictions[-1]:.2f}', 
+                xy=(10, future_predictions[-1]),
+                xytext=(10, future_predictions[-1] - 2),
+                ha='center')
+    
+    plt.tight_layout()
     
     # Print performance metrics
     print(f"\nModel Performance Metrics:")
     print(f"RMSE: ${rmse:.2f}")
     print(f"MAPE: {MAPE:.2f}%")
-
+    
     # Calculate risk metrics
     df = calculate_risk_metrics(df)
-    
-    # Get risk summary
     risk_summary = get_risk_summary(df)
     
     # Print risk metrics
@@ -487,22 +741,22 @@ def main():
     print(f"95% VaR: {risk_summary['VaR_95']:.2%}")
     print(f"Maximum Drawdown: {risk_summary['Max_Drawdown']:.2%}")
     
-    # Add risk visualization
-    plot_risk_metrics(df)
-
-    
-    # Generate trading recommendations
+    # Generate and print recommendations
     recommendation = generate_trading_recommendations(
         df, 
         risk_summary, 
         pred,
         risk_tolerance='moderate',
-        owns_stock=False  # Change this based on whether you own the stock
+        owns_stock=False
     )
-    
-    # Print recommendations
     print_recommendation(recommendation)
+    
     plt.show()
+    
+    # Clear memory
+    del df, df_TP, train, test, model
+    import gc
+    gc.collect()
 
 if __name__ == '__main__':
     main()
