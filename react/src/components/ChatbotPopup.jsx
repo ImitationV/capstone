@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import './chatbotPopup.css';
+import '../styles/chatbotPopup.css';
 
 const ChatbotPopup = () => {
   const [isOpen, setIsOpen] = useState(false);
