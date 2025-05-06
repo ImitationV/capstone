@@ -23,12 +23,6 @@ With an intuitive, minimalistic UI, users will easily be able to start and track
 - Settings
 - Receipt Scanning
 
-## USER INTERFACE
-
-Typography:
-
-Color Schema:
-
 ## Database Integration
 
 Option 1:
@@ -73,7 +67,7 @@ Before you begin, ensure you have the following installed:
 
 3.  **Install Dependencies:**
 
-    Use npm or yarn to install the project's dependencies:
+    **Front-end**
 
     **Using npm:**
 
@@ -88,6 +82,21 @@ Before you begin, ensure you have the following installed:
     ```
 
     This command will read the `package.json` file and install the necessary packages listed in the `dependencies` and `devDependencies` sections.
+
+    **Backend**
+
+    Check Python and PIP:
+
+    ```bash
+    python --version 
+    pip --version
+    ```
+
+    Go to Backend Folder and Install Requirements
+    ```bash
+    cd /backend
+    pip install -r requirements.txt
+    ```
 
 #### Running the Application
 
