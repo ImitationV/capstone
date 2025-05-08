@@ -19,13 +19,9 @@
     "formik": "^2.4.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-<<<<<<< HEAD
-    "react-router-dom": "^7.2.0",
     "@supabase/auth-ui-react": "^0.4.7",
     "@supabase/auth-ui-shared": "^0.1.8",
-=======
     "react-router-dom": "^7.5.3",
->>>>>>> main
     "yup": "^1.6.1"
   },
   "devDependencies": {
