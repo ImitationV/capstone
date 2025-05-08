@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import { createClient } from '@supabase/supabase-js';
@@ -10,6 +10,65 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 function GoalsPage() {
+    const [userGoals, setUserGoals] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    // Get the current user's ID from localStorage
+    const getCurrentUserId = () => {
+        const user = JSON.parse(localStorage.getItem('user'));
+        return user ? user.id : null;
+    };
+
+    // Delete a goal
+    const deleteGoal = async (goalId) => {
+        try {
+            const { error } = await supabase
+                .from('GOALS')
+                .delete()
+                .eq('goal_id', goalId);
+
+            if (error) throw error;
+            
+            // Update the goals list after deletion
+            setUserGoals(userGoals.filter(goal => goal.goal_id !== goalId));
+        } catch (err) {
+            console.error('Error deleting goal:', err);
+            setError('Failed to delete goal');
+        }
+    };
+
+    // Fetch user's goals
+    const fetchUserGoals = async () => {
+        const userId = getCurrentUserId();
+        if (!userId) {
+            setError('Please log in to view your goals');
+            setLoading(false);
+            return;
+        }
+
+        try {
+            const { data, error } = await supabase
+                .from('GOALS')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_date', { ascending: false });
+
+            if (error) throw error;
+            setUserGoals(data);
+        } catch (err) {
+            console.error('Error fetching goals:', err);
+            setError('Failed to fetch goals');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Fetch goals when component mounts
+    useEffect(() => {
+        fetchUserGoals();
+    }, []);
+
     const initialValues = {
         goalName: '',
         targetAmount: '',
@@ -31,52 +90,53 @@ function GoalsPage() {
     });
 
     const onSubmit = async (values, { resetForm }) => {
-        const now = new Date().toISOString(); // Gets the current timestamp with timezone
-        const currentUserId = 1; // ---------------------------- testID
+        const now = new Date().toISOString();
+        const userId = getCurrentUserId();
+
+        if (!userId) {
+            setError('Please log in to create goals');
+            return;
+        }
 
         try {
-            // Inserts data into goals table
+            // Insert new goal
             const { error: goalsError } = await supabase
                 .from('GOALS')
                 .insert([
                     {
-                        user_id: currentUserId, 
+                        user_id: userId,
                         goal_name: values.goalName,
-                        target_amount: values.targetAmount,
-                        time_frame: values.timeFrame,
+                        target_amount: parseInt(values.targetAmount),
+                        time_frame: new Date(values.timeFrame).toISOString(),
                         created_date: now,
                         last_updated: now,
                     },
                 ]);
 
-            if (goalsError) {
-                console.error('Error inserting into goals table:', goalsError);
-                return;
-            }
+            if (goalsError) throw goalsError;
 
-            // Inserts data into the userprofile table
+            // Update user profile
             const { error: userProfileError } = await supabase
                 .from('USERPROFILE')
-                .upsert([  // Upsert to update or insert
+                .upsert([
                     {
-                        profile_id: currentUserId, // testID
+                        profile_id: userId,
                         income_frequency: values.incomeFrequency,
-                        current_savings: values.currentSaving,
-                        monthly_expenses: values.monthlyExpense,
-                        income: values.income,
+                        current_savings: parseFloat(values.currentSaving),
+                        monthly_expenses: parseFloat(values.monthlyExpense),
+                        income: parseFloat(values.income),
                         last_updated: now,
                     },
                 ]);
 
-            if (userProfileError) {
-                console.error('Error inserting into userprofile table:', userProfileError);
-                return;
-            }
+            if (userProfileError) throw userProfileError;
 
-            console.log('Data submitted successfully!');
-            resetForm(); //resets the form after successful submission and displays a success message to the user
+            // Refresh goals list
+            await fetchUserGoals();
+            resetForm();
         } catch (error) {
-            console.error('An unexpected error occurred:', error);
+            console.error('Error saving data:', error);
+            setError('Failed to save goal');
         }
     };
 
@@ -89,7 +149,7 @@ function GoalsPage() {
             >
                 {({ errors, touched }) => (
                     <Form className="goals-form">
-                        <h2>Financial Goals & Profile</h2>
+                        <h2>Create New Goal</h2>
                         <div className="form-group">
                             <label htmlFor="goalName">Goal Name</label>
                             <Field type="text" id="goalName" name="goalName" />
@@ -113,7 +173,6 @@ function GoalsPage() {
                             <ErrorMessage name="incomeFrequency" component="div" className="error-message" />
                         </div>
 
-
                         <div className="form-group">
                             <label htmlFor="currentSaving">Current Saving</label>
                             <Field type="number" id="currentSaving" name="currentSaving" />
@@ -125,7 +184,6 @@ function GoalsPage() {
                             <Field type="number" id="monthlyExpense" name="monthlyExpense" />
                             <ErrorMessage name="monthlyExpense" component="div" className="error-message" />
                         </div>
-
 
                         <div className="form-group">
                             <label htmlFor="targetAmount">Target Amount</label>
@@ -139,11 +197,41 @@ function GoalsPage() {
                             <ErrorMessage name="timeFrame" component="div" className="error-message" />
                         </div>
 
-
-                        <button type="submit" className="submit-button">Submit</button>
+                        <button type="submit" className="submit-button">Create Goal</button>
                     </Form>
                 )}
             </Formik>
+
+            <div className="goals-list">
+                <h2>Your Financial Goals</h2>
+                {loading ? (
+                    <p>Loading your goals...</p>
+                ) : error ? (
+                    <p className="error-message">{error}</p>
+                ) : userGoals.length === 0 ? (
+                    <p>No goals set yet. Create your first goal above!</p>
+                ) : (
+                    <div className="goals-grid">
+                        {userGoals.map((goal) => (
+                            <div key={goal.goal_id} className="goal-card">
+                                <div className="goal-header">
+                                    <h3>{goal.goal_name}</h3>
+                                    <button 
+                                        onClick={() => deleteGoal(goal.goal_id)}
+                                        className="delete-button"
+                                        title="Delete goal"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                                <p>Target: ${goal.target_amount.toLocaleString()}</p>
+                                <p>Deadline: {new Date(goal.time_frame).toLocaleDateString()}</p>
+                                <p>Created: {new Date(goal.created_date).toLocaleDateString()}</p>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

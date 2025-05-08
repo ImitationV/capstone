@@ -5,9 +5,8 @@ import LoginPage from './components/LoginPage';
 import OverviewPage from './components/OverviewPage';
 import GoalsPage from './components/GoalsPage';
 import TransactionsPage from './components/TransactionsPage';
+import StockAnalyzer from './components/StockAnalyzer';
 import ChatbotPopup from './components/ChatbotPopup';
-
-
 
 function App() {
     return (
@@ -18,6 +17,7 @@ function App() {
                     <Route path="/overview" element={<OverviewPage />} />
                     <Route path="/goals" element={<GoalsPage />} />
                     <Route path="/transactions" element={<TransactionsPage />} />
+                    <Route path="/stock-analyzer" element={<StockAnalyzer />} />
                 </Routes>
             </Layout>
         </Router>
