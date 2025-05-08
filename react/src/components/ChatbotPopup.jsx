@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import '../styles/chatbotPopup.css';
+import axios from 'axios';
+
+const api = axios.create({
+    baseURL: 'http://localhost:4000'
+});
 
 const ChatbotPopup = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,18 +25,15 @@ const ChatbotPopup = () => {
     setUserInput('');
 
     try {
-      const res = await fetch('http://127.0.0.1:8000/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userInput }),
+      const response = await api.post('/api/chat', {
+        message: userInput
       });
-      const data = await res.json();
 
       // Replace "Thinking..." with actual response
       const finalMessages = [
         ...messages,
         userMessage,
-        { role: 'bot', text: data.response || 'No response.' },
+        { role: 'bot', text: response.data.response || 'No response.' },
       ];
       setMessages(finalMessages);
     } catch (err) {
@@ -41,6 +43,7 @@ const ChatbotPopup = () => {
         { role: 'bot', text: 'Error fetching response.' },
       ];
       setMessages(errorMessages);
+      console.error('Chat error:', err);
     }
   };
 

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from sklearn.model_selection import train_test_split
 from xgboost import XGBRegressor
 from sklearn.metrics import root_mean_squared_error
+import time
 
 
 
@@ -15,10 +16,32 @@ def fetch_daily_data(symbol):
     Fetches daily stock data for a given symbol over the last 2.5 years
     @return: pandas DF containing daily stock data
     """
-    today = datetime.now().strftime("%Y-%m-%d")
-    two_years_ago = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=2.5*365)).strftime("%Y-%m-%d")
-    df = yf.download(symbol, start=two_years_ago, end=today)
-    return df
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+        two_years_ago = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=2.5*365)).strftime("%Y-%m-%d")
+        
+        # Fetch data with retry mechanism
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                df = yf.download(symbol, start=two_years_ago, end=today)
+                if not df.empty:
+                    print(f"Successfully fetched data for {symbol}")
+                    return df
+                else:
+                    print(f"Attempt {attempt + 1}: No data received for {symbol}")
+            except Exception as e:
+                print(f"Attempt {attempt + 1} failed: {str(e)}")
+                if attempt == max_retries - 1:
+                    raise
+                time.sleep(2)  # Wait before retrying
+        
+        raise ValueError(f"No data available for symbol {symbol}")
+        
+    except Exception as e:
+        print(f"Error fetching data for {symbol}: {str(e)}")
+        # Return a sample DataFrame with the required columns
+        return pd.DataFrame(columns=['Open', 'High', 'Low', 'Close', 'Volume'])
 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     '''
@@ -26,15 +49,45 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     @param df: pandas DF containing stock data
     @return: pandas DF containing engineered features
     '''
+    # Ensure we're working with a DataFrame
+    if not isinstance(df, pd.DataFrame):
+        raise ValueError("Input must be a pandas DataFrame")
+
+    # Make a copy to avoid modifying the original
+    df = df.copy()
+    
     # Use vectorized operations for basic indicators
     df['SMA200'] = df['Close'].rolling(window=200).mean()
     df['SMA50'] = df['Close'].rolling(window=50).mean()
     df['EMA20'] = df['Close'].ewm(span=20).mean()
     
     # Calculate essential indicators
-    df['RSI'] = TA.RSI(df)
-    df['MACD'] = TA.MACD(df)['MACD']
-    df['MACD_SIGNAL'] = TA.MACD(df)['SIGNAL']
+    try:
+        # Ensure column names are in the correct case for finta
+        df.columns = [col.lower() for col in df.columns]
+        
+        # Calculate RSI
+        rsi = TA.RSI(df)
+        if isinstance(rsi, tuple):
+            df['RSI'] = rsi[0]  # Take first element if tuple
+        else:
+            df['RSI'] = rsi
+            
+        # Calculate MACD
+        macd = TA.MACD(df)
+        if isinstance(macd, tuple):
+            df['MACD'] = macd[0]['MACD']  # Take first element if tuple
+            df['MACD_SIGNAL'] = macd[0]['SIGNAL']
+        else:
+            df['MACD'] = macd['MACD']
+            df['MACD_SIGNAL'] = macd['SIGNAL']
+            
+    except Exception as e:
+        print(f"Error calculating technical indicators: {str(e)}")
+        # Set default values if calculation fails
+        df['RSI'] = 50
+        df['MACD'] = 0
+        df['MACD_SIGNAL'] = 0
     
     # Drop rows with NaN values
     df = df.iloc[200:, :]
@@ -103,24 +156,50 @@ def validate(data, perc):
     @param perc: percentage of data for test set
     @return: tuple of (error, MAPE, actual values, predictions)
     '''
+    # Check if we have enough data
+    if len(data) < 50:  # Minimum required data points
+        print("Not enough data for validation")
+        return 0.0, 0.0, [], []
+        
     predictions = []
     train, test = train_test_split(data, perc)
+    
+    # Check if test set is empty
+    if len(test) == 0:
+        print("Test set is empty")
+        return 0.0, 0.0, [], []
+        
     history = train.copy()
-    
     model = None
-    for i in range(len(test)):
-        X_test = test[i,:-1].reshape(1, -1)
-        y_test = test[i,-1]
-        
-        pred, model = xgb_predict(history, X_test, model)
-        predictions.append(pred)
-        
-        history = np.vstack([history, test[i]])
     
-    error = root_mean_squared_error(test[:,-1], predictions)
-    MAPE = mape(test[:,-1], predictions)
-    
-    return error, MAPE, test[:,-1], predictions
+    try:
+        for i in range(len(test)):
+            X_test = test[i,:-1].reshape(1, -1)
+            y_test = test[i,-1]
+            
+            pred, model = xgb_predict(history, X_test, model)
+            predictions.append(pred)
+            
+            history = np.vstack([history, test[i]])
+        
+        # Convert to numpy arrays
+        predictions = np.array(predictions)
+        actual = test[:,-1]
+        
+        # Check if we have valid data
+        if len(actual) == 0 or len(predictions) == 0:
+            print("No valid predictions or actual values")
+            return 0.0, 0.0, [], []
+        
+        # Calculate error metrics
+        error = root_mean_squared_error(actual, predictions)
+        MAPE = mape(actual, predictions)
+        
+        return error, MAPE, actual, predictions
+        
+    except Exception as e:
+        print(f"Error in validate function: {str(e)}")
+        return 0.0, 0.0, [], []
 
 def calculate_risk_metrics(df: pd.DataFrame) -> pd.DataFrame:
     '''
@@ -290,19 +369,24 @@ def generate_trading_recommendations(df: pd.DataFrame, risk_summary: dict, predi
     
     # RSI with trend consideration
     rsi_trend = df['RSI'].iloc[-5:].mean() - df['RSI'].iloc[-10:-5].mean()
-    if latest['RSI'] < 30:
+    rsi_value = float(latest['RSI'])  # Convert to float to avoid Series comparison
+    
+    if rsi_value < 30:
         tech_score += 1.5 if rsi_trend > 0 else 1  # Extra weight if RSI is improving
         recommendation['technical_signals'].append("Oversold condition (RSI)")
-    elif latest['RSI'] > 70:
+    elif rsi_value > 70:
         tech_score -= 1.5 if rsi_trend < 0 else 1  # Extra weight if RSI is decreasing
         recommendation['technical_signals'].append("Overbought condition (RSI)")
-    elif 40 <= latest['RSI'] <= 60:  # Neutral zone
+    elif 40 <= rsi_value <= 60:  # Neutral zone
         tech_score += 0.5
         recommendation['technical_signals'].append("RSI in neutral zone")
     
     # MACD with trend strength
     macd_trend = df['MACD'].iloc[-5:].mean() - df['MACD'].iloc[-10:-5].mean()
-    if latest['MACD'] > latest['MACD_SIGNAL']:
+    macd_value = float(latest['MACD'])  # Convert to float
+    macd_signal_value = float(latest['MACD_SIGNAL'])  # Convert to float
+    
+    if macd_value > macd_signal_value:
         tech_score += 1.5 if macd_trend > 0 else 1  # Extra weight if trend is strengthening
         recommendation['technical_signals'].append("Positive MACD crossover")
     else:
@@ -311,17 +395,21 @@ def generate_trading_recommendations(df: pd.DataFrame, risk_summary: dict, predi
     
     # Moving Average analysis with multiple timeframes
     ma_score = 0
-    if latest['Close'] > latest['SMA200']:
+    close_value = float(latest['Close'])  # Convert to float
+    sma200_value = float(latest['SMA200'])  # Convert to float
+    sma50_value = float(latest['SMA50'])  # Convert to float
+    
+    if close_value > sma200_value:
         ma_score += 1
         recommendation['technical_signals'].append("Price above 200-day SMA")
-    if latest['Close'] > latest['SMA50']:
+    if close_value > sma50_value:
         ma_score += 0.5
         recommendation['technical_signals'].append("Price above 50-day SMA")
     tech_score += ma_score
     
     # 3. Enhanced Prediction Analysis
     pred_score = 0
-    current_price = latest['Close']
+    current_price = close_value
     
     # Calculate average predicted return with trend consideration
     avg_prediction = np.mean(predictions[-5:])
@@ -362,7 +450,7 @@ def generate_trading_recommendations(df: pd.DataFrame, risk_summary: dict, predi
     # 4. Position Analysis with market context
     if owns_stock:
         # Check stop loss with trend consideration
-        recent_return = (current_price - df['Close'].iloc[-2]) / df['Close'].iloc[-2]
+        recent_return = (current_price - float(df['Close'].iloc[-2])) / float(df['Close'].iloc[-2])
         if recent_return < thresholds['stop_loss']:
             if recent_return > df['Daily_Returns'].mean():  # Better than average daily return
                 recommendation['position_analysis'].append(
@@ -541,51 +629,69 @@ def predict_future(df: pd.DataFrame, days: int = 10) -> tuple[list, list]:
     @param days: Number of days to predict into the future
     @return: Tuple of (predictions list, dates list)
     '''
-    predictions = []
-    dates = []
-    current_data = df.iloc[-1:].copy()
-    last_date = df.index[-1]
-    
-    # Train model once
-    model = XGBRegressor(
-        objective='reg:squarederror',
-        n_estimators=500,
-        learning_rate=0.1,
-        colsample_bytree=0.7,
-        max_depth=3,
-        gamma=1,
-        n_jobs=-1
-    )
-    
-    X = df.iloc[:, :-1]
-    y = df.iloc[:, -1]
-    model.fit(X, y)
-    
-    # Process predictions in batches
-    for i in range(0, days, 5):
-        batch_days = min(5, days - i)
-        batch_predictions = []
+    # Check if DataFrame is empty
+    if df.empty:
+        print("Empty DataFrame provided for predictions")
+        return [], []
         
-        for j in range(batch_days):
-            next_date = last_date + timedelta(days=i+j+1)
-            dates.append(next_date)
-            
-            features = current_data.iloc[:, :-1]
-            pred = model.predict(features)[0]
-            batch_predictions.append(pred)
-            
-            # Update current data
-            current_data['Close'] = pred
-            current_data['Target'] = pred
-            
-            # Update only essential indicators
-            current_data['SMA200'] = (df['Close'].iloc[-199:].sum() + pred) / 200
-            current_data['SMA50'] = (df['Close'].iloc[-49:].sum() + pred) / 50
-            current_data['EMA20'] = pred * 0.1 + current_data['EMA20'].iloc[-1] * 0.9
+    # Check if we have enough data
+    if len(df) < 50:  # Minimum required data points
+        print("Not enough historical data for predictions")
+        return [], []
         
-        predictions.extend(batch_predictions)
-    
-    return predictions, dates
+    try:
+        predictions = []
+        dates = []
+        current_data = df.iloc[-1:].copy()
+        last_date = df.index[-1]
+        
+        # Train model once
+        model = XGBRegressor(
+            objective='reg:squarederror',
+            n_estimators=500,
+            learning_rate=0.1,
+            colsample_bytree=0.7,
+            max_depth=3,
+            gamma=1,
+            n_jobs=-1
+        )
+        
+        # Prepare training data
+        X = df.iloc[:, :-1]  # All columns except the last one
+        y = df.iloc[:, -1]   # Last column (target)
+        
+        # Fit the model
+        model.fit(X, y)
+        
+        # Process predictions in batches
+        for i in range(0, days, 5):
+            batch_days = min(5, days - i)
+            batch_predictions = []
+            
+            for j in range(batch_days):
+                next_date = last_date + timedelta(days=i+j+1)
+                dates.append(next_date)
+                
+                features = current_data.iloc[:, :-1]
+                pred = model.predict(features)[0]
+                batch_predictions.append(pred)
+                
+                # Update current data
+                current_data['Close'] = pred
+                current_data['Target'] = pred
+                
+                # Update only essential indicators
+                current_data['SMA200'] = (df['Close'].iloc[-199:].sum() + pred) / 200
+                current_data['SMA50'] = (df['Close'].iloc[-49:].sum() + pred) / 50
+                current_data['EMA20'] = pred * 0.1 + current_data['EMA20'].iloc[-1] * 0.9
+            
+            predictions.extend(batch_predictions)
+        
+        return predictions, dates
+        
+    except Exception as e:
+        print(f"Error in predict_future function: {str(e)}")
+        return [], []
 
 def display_future_predictions(predictions: list, dates: list, current_price: float):
     '''
@@ -635,128 +741,154 @@ def display_future_predictions(predictions: list, dates: list, current_price: fl
     print("="*80 + "\n")
 
 def main():
-    # Fetch data with reduced time range
-    df = fetch_daily_data('AAPL')
-    df.columns = df.columns.droplevel(1)
-    
-    # Convert to float32 for memory efficiency
-    for col in df.select_dtypes(include=['float64']).columns:
-        df[col] = df[col].astype('float32')
-    
-    # Engineer features with optimized indicators
-    df = engineer_features(df)
-    
-    # Split data
-    train, test = train_test_split(df, 0.7)
-    
-    # Initialize model once
-    model = XGBRegressor(
-        objective='reg:squarederror',
-        n_estimators=500,
-        learning_rate=0.1,
-        colsample_bytree=0.7,
-        max_depth=3,
-        gamma=1,
-        n_jobs=-1
-    )
-    
-    # Train model once
-    X_train = train[:,:-1]
-    y_train = train[:,-1]
-    model.fit(X_train, y_train)
-    
-    # Validate and get predictions
-    rmse, MAPE, y, pred = validate(df, 0.7)
-    pred = np.array(pred, dtype='float32')
-    test_pred = np.c_[test, pred]
-    
-    # Create visualization DataFrame efficiently
-    columns = list(df.columns) + ['Pred']
-    df_TP = pd.DataFrame(test_pred, columns=columns[:test_pred.shape[1]])
-    
-    # Prepare data for plotting
-    df = df.reset_index(names='Date')
-    df_dates = df[['Date', 'Target', 'Close']]
-    df_TP = pd.merge(df_TP, df_dates, on='Target', how='left')
-    df_TP = df_TP.sort_values(by='Date').reset_index(drop=True)
-    
-    # Get future predictions (reduced to 10 days)
-    df_indexed = df.set_index('Date')
-    future_predictions, future_dates = predict_future(df_indexed, days=10)
-    
-    # Display predictions
-    current_price = df['Close'].iloc[-1]
-    display_future_predictions(future_predictions, future_dates, current_price)
-    
-    # Create figure with two subplots
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 12))
-    
-    # Plot 1: Historical Prices
-    ax1.plot(df['Date'], df['Close'], label='Historical Close Price', color='blue')
-    ax1.set_title('AAPL Historical Prices', fontsize=18)
-    ax1.set_xlabel('Date', fontsize=14)
-    ax1.set_ylabel('Price USD', fontsize=14)
-    ax1.legend(loc='upper left')
-    ax1.grid(True)
-    
-    # Plot 2: Future Predictions
-    days_into_future = range(1, len(future_predictions) + 1)
-    ax2.plot(days_into_future, future_predictions, label='Predicted Price', color='red', marker='o')
-    ax2.set_title('AAPL 10-Day Price Predictions', fontsize=18)
-    ax2.set_xlabel('Days into Future', fontsize=14)
-    ax2.set_ylabel('Predicted Price (USD)', fontsize=14)
-    ax2.legend(loc='upper left')
-    ax2.grid(True)
-    
-    # Add horizontal line for current price
-    ax2.axhline(y=current_price, color='blue', linestyle='--', label=f'Current Price (${current_price:.2f})')
-    
-    # Add price annotations
-    ax2.annotate(f'${future_predictions[0]:.2f}', 
-                xy=(1, future_predictions[0]),
-                xytext=(1, future_predictions[0] + 2),
-                ha='center')
-    ax2.annotate(f'${future_predictions[-1]:.2f}', 
-                xy=(10, future_predictions[-1]),
-                xytext=(10, future_predictions[-1] - 2),
-                ha='center')
-    
-    plt.tight_layout()
-    
-    # Print performance metrics
-    print(f"\nModel Performance Metrics:")
-    print(f"RMSE: ${rmse:.2f}")
-    print(f"MAPE: {MAPE:.2f}%")
-    
-    # Calculate risk metrics
-    df = calculate_risk_metrics(df)
-    risk_summary = get_risk_summary(df)
-    
-    # Print risk metrics
-    print("\nRisk Assessment Metrics:")
-    print(f"20-day Volatility: {risk_summary['Current_Volatility_20d']:.2%}")
-    print(f"60-day Volatility: {risk_summary['Current_Volatility_60d']:.2%}")
-    print(f"Sharpe Ratio: {risk_summary['Sharpe_Ratio']:.2f}")
-    print(f"Sortino Ratio: {risk_summary['Sortino_Ratio']:.2f}")
-    print(f"95% VaR: {risk_summary['VaR_95']:.2%}")
-    print(f"Maximum Drawdown: {risk_summary['Max_Drawdown']:.2%}")
-    
-    # Generate and print recommendations
-    recommendation = generate_trading_recommendations(
-        df, 
-        risk_summary, 
-        pred,
-        risk_tolerance='moderate',
-        owns_stock=False
-    )
-    print_recommendation(recommendation)
-    
-    plt.show()
-    
-    # Clear memory
-    del df, df_TP, train, test, model
-    import gc
-    gc.collect()
+    try:
+        # Fetch data with reduced time range
+        df = fetch_daily_data('AAPL')
+        
+        # Check if we have valid data
+        if df.empty:
+            print("No data available for analysis")
+            return
+            
+        df.columns = df.columns.droplevel(1)
+        
+        # Convert to float32 for memory efficiency
+        for col in df.select_dtypes(include=['float64']).columns:
+            df[col] = df[col].astype('float32')
+        
+        # Engineer features with optimized indicators
+        df = engineer_features(df)
+        
+        # Check if we have enough data after feature engineering
+        if len(df) < 50:
+            print("Not enough data points after feature engineering")
+            return
+        
+        # Split data
+        train, test = train_test_split(df, 0.7)
+        
+        # Initialize model once
+        model = XGBRegressor(
+            objective='reg:squarederror',
+            n_estimators=500,
+            learning_rate=0.1,
+            colsample_bytree=0.7,
+            max_depth=3,
+            gamma=1,
+            n_jobs=-1
+        )
+        
+        # Train model once
+        X_train = train[:,:-1]
+        y_train = train[:,-1]
+        model.fit(X_train, y_train)
+        
+        # Validate and get predictions
+        rmse, MAPE, y, pred = validate(df, 0.7)
+        if len(pred) == 0:
+            print("No predictions generated")
+            return
+            
+        pred = np.array(pred, dtype='float32')
+        test_pred = np.c_[test, pred]
+        
+        # Create visualization DataFrame efficiently
+        columns = list(df.columns) + ['Pred']
+        df_TP = pd.DataFrame(test_pred, columns=columns[:test_pred.shape[1]])
+        
+        # Prepare data for plotting
+        df = df.reset_index(names='Date')
+        df_dates = df[['Date', 'Target', 'Close']]
+        df_TP = pd.merge(df_TP, df_dates, on='Target', how='left')
+        df_TP = df_TP.sort_values(by='Date').reset_index(drop=True)
+        
+        # Get future predictions (reduced to 10 days)
+        df_indexed = df.set_index('Date')
+        future_predictions, future_dates = predict_future(df_indexed, days=10)
+        
+        if len(future_predictions) == 0:
+            print("No future predictions generated")
+            return
+            
+        # Display predictions
+        current_price = df['Close'].iloc[-1]
+        display_future_predictions(future_predictions, future_dates, current_price)
+        
+        # Create figure with two subplots
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 12))
+        
+        # Plot 1: Historical Prices
+        ax1.plot(df['Date'], df['Close'], label='Historical Close Price', color='blue')
+        ax1.set_title('AAPL Historical Prices', fontsize=18)
+        ax1.set_xlabel('Date', fontsize=14)
+        ax1.set_ylabel('Price USD', fontsize=14)
+        ax1.legend(loc='upper left')
+        ax1.grid(True)
+        
+        # Plot 2: Future Predictions
+        days_into_future = range(1, len(future_predictions) + 1)
+        ax2.plot(days_into_future, future_predictions, label='Predicted Price', color='red', marker='o')
+        ax2.set_title('AAPL 10-Day Price Predictions', fontsize=18)
+        ax2.set_xlabel('Days into Future', fontsize=14)
+        ax2.set_ylabel('Predicted Price (USD)', fontsize=14)
+        ax2.legend(loc='upper left')
+        ax2.grid(True)
+        
+        # Add horizontal line for current price
+        ax2.axhline(y=current_price, color='blue', linestyle='--', label=f'Current Price (${current_price:.2f})')
+        
+        # Add price annotations
+        ax2.annotate(f'${future_predictions[0]:.2f}', 
+                    xy=(1, future_predictions[0]),
+                    xytext=(1, future_predictions[0] + 2),
+                    ha='center')
+        ax2.annotate(f'${future_predictions[-1]:.2f}', 
+                    xy=(10, future_predictions[-1]),
+                    xytext=(10, future_predictions[-1] - 2),
+                    ha='center')
+        
+        plt.tight_layout()
+        
+        # Print performance metrics
+        print(f"\nModel Performance Metrics:")
+        print(f"RMSE: ${rmse:.2f}")
+        print(f"MAPE: {MAPE:.2f}%")
+        
+        # Calculate risk metrics
+        df = calculate_risk_metrics(df)
+        risk_summary = get_risk_summary(df)
+        
+        # Print risk metrics
+        print("\nRisk Assessment Metrics:")
+        print(f"20-day Volatility: {risk_summary['Current_Volatility_20d']:.2%}")
+        print(f"60-day Volatility: {risk_summary['Current_Volatility_60d']:.2%}")
+        print(f"Sharpe Ratio: {risk_summary['Sharpe_Ratio']:.2f}")
+        print(f"Sortino Ratio: {risk_summary['Sortino_Ratio']:.2f}")
+        print(f"95% VaR: {risk_summary['VaR_95']:.2%}")
+        print(f"Maximum Drawdown: {risk_summary['Max_Drawdown']:.2%}")
+        
+        # Generate and print recommendations
+        recommendation = generate_trading_recommendations(
+            df, 
+            risk_summary, 
+            pred,
+            risk_tolerance='moderate',
+            owns_stock=False
+        )
+        print_recommendation(recommendation)
+        
+        plt.show()
+        
+    except Exception as e:
+        print(f"Error in main function: {str(e)}")
+    finally:
+        # Clear memory
+        try:
+            del df, df_TP, train, test, model
+            import gc
+            gc.collect()
+        except:
+            pass
 
 if __name__ == '__main__':
     main()

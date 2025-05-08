@@ -3,8 +3,10 @@ const express = require('express');
 // Import cors middleware to enable Cross-Origin Resource Sharing (CORS)
 // This allows our frontend application to make requests to our backend API
 const cors = require('cors');
-const { supabase, fetchUsers } = require('./services/db');
+// const { supabase, fetchUsers } = require('./services/db');
 const loginRouter = require('./routes/login');
+const chatRouter = require('./routes/chat');
+const stockAnalyzerRouter = require('./routes/stockAnalyzer');
 const app = express();
 
 // This allows the frontend to make requests to the backend
@@ -22,14 +24,15 @@ app.get('/api/health', (req, res) => {
 });
 
 // Call the function to check user data
-fetchUsers();
+// fetchUsers();
 
-// This allows the frontend to send login requests to the backend
-app.post('/api/login', loginRouter);
+// Routes
+app.use('/', loginRouter);
+app.use('/api/chat', chatRouter);
+app.use('/api/stock', stockAnalyzerRouter);
 
 // Start the server
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
-    console.log('Navigating to http://localhost:4000/api/health to make see the success message');
-    console.log(`Server listening on port ${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
 });
