@@ -1,64 +1,237 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
+import { createClient } from '@supabase/supabase-js';
 import '../styles/goals.css';
 
+// Initialize Supabase client
+const supabaseUrl = 'https://idwneflrvwwcwkjlwbkz.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlkd25lZmxydnd3Y3dramx3Ymt6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE1ODM1NjcsImV4cCI6MjA1NzE1OTU2N30.RmyMAOfIS1h30ne2E4AT1RB-XWpjA2DN0Bo4FW-9bmQ';
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 function GoalsPage() {
+    const [userGoals, setUserGoals] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    // Get the current user's ID from localStorage
+    const getCurrentUserId = () => {
+        const user = JSON.parse(localStorage.getItem('user'));
+        return user ? user.id : null;
+    };
+
+    // Delete a goal
+    const deleteGoal = async (goalId) => {
+        try {
+            const { error } = await supabase
+                .from('GOALS')
+                .delete()
+                .eq('goal_id', goalId);
+
+            if (error) throw error;
+            
+            // Update the goals list after deletion
+            setUserGoals(userGoals.filter(goal => goal.goal_id !== goalId));
+        } catch (err) {
+            console.error('Error deleting goal:', err);
+            setError('Failed to delete goal');
+        }
+    };
+
+    // Fetch user's goals
+    const fetchUserGoals = async () => {
+        const userId = getCurrentUserId();
+        if (!userId) {
+            setError('Please log in to view your goals');
+            setLoading(false);
+            return;
+        }
+
+        try {
+            const { data, error } = await supabase
+                .from('GOALS')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_date', { ascending: false });
+
+            if (error) throw error;
+            setUserGoals(data);
+        } catch (err) {
+            console.error('Error fetching goals:', err);
+            setError('Failed to fetch goals');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Fetch goals when component mounts
+    useEffect(() => {
+        fetchUserGoals();
+    }, []);
+
     const initialValues = {
-        monthlyIncome: '',
-        savings: '',
-        monthlyExpenses: '',
-        monthlyLoanPayment: '',
+        goalName: '',
+        targetAmount: '',
+        timeFrame: '',
+        incomeFrequency: '',
+        currentSaving: '',
+        monthlyExpense: '',
+        income: '',
     };
 
     const validationSchema = Yup.object({
-        monthlyIncome: Yup.number().required('Monthly Income is required').positive('Must be a positive number'),
-        savings: Yup.number().required('Savings is required').positive('Must be a positive number'),
-        monthlyExpenses: Yup.number().required('Monthly Expenses is required').positive('Must be a positive number'),
-        monthlyLoanPayment: Yup.number().required('Monthly Loan Payment is required').positive('Must be a positive number'),
+        goalName: Yup.string().required('Goal Name is required'),
+        targetAmount: Yup.number().required('Target Amount is required').positive('Must be a positive number'),
+        timeFrame: Yup.date().required('Time Frame is required'),
+        incomeFrequency: Yup.string().oneOf(['Weekly', 'Biweekly', 'Monthly'], 'Invalid frequency').required('Income Frequency is required'),
+        currentSaving: Yup.number().required('Current Saving is required').positive('Must be a positive number'),
+        monthlyExpense: Yup.number().required('Monthly Expense is required').positive('Must be a positive number'),
+        income: Yup.number().required('Income is required').positive('Must be a positive number'),
     });
 
-    const onSubmit = (values) => {
-        console.log('Form values submitted:', values);
-        // display on the browser console the values submitted
+    const onSubmit = async (values, { resetForm }) => {
+        const now = new Date().toISOString();
+        const userId = getCurrentUserId();
+
+        if (!userId) {
+            setError('Please log in to create goals');
+            return;
+        }
+
+        try {
+            // Insert new goal
+            const { error: goalsError } = await supabase
+                .from('GOALS')
+                .insert([
+                    {
+                        user_id: userId,
+                        goal_name: values.goalName,
+                        target_amount: parseInt(values.targetAmount),
+                        time_frame: new Date(values.timeFrame).toISOString(),
+                        created_date: now,
+                        last_updated: now,
+                    },
+                ]);
+
+            if (goalsError) throw goalsError;
+
+            // Update user profile
+            const { error: userProfileError } = await supabase
+                .from('USERPROFILE')
+                .upsert([
+                    {
+                        profile_id: userId,
+                        income_frequency: values.incomeFrequency,
+                        current_savings: parseFloat(values.currentSaving),
+                        monthly_expenses: parseFloat(values.monthlyExpense),
+                        income: parseFloat(values.income),
+                        last_updated: now,
+                    },
+                ]);
+
+            if (userProfileError) throw userProfileError;
+
+            // Refresh goals list
+            await fetchUserGoals();
+            resetForm();
+        } catch (error) {
+            console.error('Error saving data:', error);
+            setError('Failed to save goal');
+        }
     };
 
     return (
         <div className="goals-page-container">
-            <h2>Spending Goal</h2>
             <Formik
                 initialValues={initialValues}
                 validationSchema={validationSchema}
                 onSubmit={onSubmit}
             >
-                <Form className="goals-form">
-                    <div className="form-group">
-                        <label htmlFor="monthlyIncome">Monthly Income</label>
-                        <Field type="number" id="monthlyIncome" name="monthlyIncome" />
-                        <ErrorMessage name="monthlyIncome" component="div" className="error-message" />
-                    </div>
+                {({ errors, touched }) => (
+                    <Form className="goals-form">
+                        <h2>Create New Goal</h2>
+                        <div className="form-group">
+                            <label htmlFor="goalName">Goal Name</label>
+                            <Field type="text" id="goalName" name="goalName" />
+                            <ErrorMessage name="goalName" component="div" className="error-message" />
+                        </div>
 
-                    <div className="form-group">
-                        <label htmlFor="savings">Savings</label>
-                        <Field type="number" id="savings" name="savings" />
-                        <ErrorMessage name="savings" component="div" className="error-message" />
-                    </div>
+                        <div className="form-group">
+                            <label htmlFor="income">Income</label>
+                            <Field type="number" id="income" name="income" />
+                            <ErrorMessage name="income" component="div" className="error-message" />
+                        </div>
 
-                    <div className="form-group">
-                        <label htmlFor="monthlyExpenses">Monthly Expenses</label>
-                        <Field type="number" id="monthlyExpenses" name="monthlyExpenses" />
-                        <ErrorMessage name="monthlyExpenses" component="div" className="error-message" />
-                    </div>
+                        <div className="form-group">
+                            <label htmlFor="incomeFrequency">Income Frequency</label>
+                            <Field as="select" id="incomeFrequency" name="incomeFrequency">
+                                <option value="">Select Frequency</option>
+                                <option value="Weekly">Weekly</option>
+                                <option value="Biweekly">Biweekly</option>
+                                <option value="Monthly">Monthly</option>
+                            </Field>
+                            <ErrorMessage name="incomeFrequency" component="div" className="error-message" />
+                        </div>
 
-                    <div className="form-group">
-                        <label htmlFor="monthlyLoanPayment">Monthly Loan Payment</label>
-                        <Field type="number" id="monthlyLoanPayment" name="monthlyLoanPayment" />
-                        <ErrorMessage name="monthlyLoanPayment" component="div" className="error-message" />
-                    </div>
+                        <div className="form-group">
+                            <label htmlFor="currentSaving">Current Saving</label>
+                            <Field type="number" id="currentSaving" name="currentSaving" />
+                            <ErrorMessage name="currentSaving" component="div" className="error-message" />
+                        </div>
 
-                    <button type="submit" className="submit-button">Submit</button>
-                </Form>
+                        <div className="form-group">
+                            <label htmlFor="monthlyExpense">Monthly Expense</label>
+                            <Field type="number" id="monthlyExpense" name="monthlyExpense" />
+                            <ErrorMessage name="monthlyExpense" component="div" className="error-message" />
+                        </div>
+
+                        <div className="form-group">
+                            <label htmlFor="targetAmount">Target Amount</label>
+                            <Field type="number" id="targetAmount" name="targetAmount" />
+                            <ErrorMessage name="targetAmount" component="div" className="error-message" />
+                        </div>
+
+                        <div className="form-group">
+                            <label htmlFor="timeFrame">Time Frame</label>
+                            <Field type="date" id="timeFrame" name="timeFrame" />
+                            <ErrorMessage name="timeFrame" component="div" className="error-message" />
+                        </div>
+
+                        <button type="submit" className="submit-button">Create Goal</button>
+                    </Form>
+                )}
             </Formik>
+
+            <div className="goals-list">
+                <h2>Your Financial Goals</h2>
+                {loading ? (
+                    <p>Loading your goals...</p>
+                ) : error ? (
+                    <p className="error-message">{error}</p>
+                ) : userGoals.length === 0 ? (
+                    <p>No goals set yet. Create your first goal above!</p>
+                ) : (
+                    <div className="goals-grid">
+                        {userGoals.map((goal) => (
+                            <div key={goal.goal_id} className="goal-card">
+                                <div className="goal-header">
+                                    <h3>{goal.goal_name}</h3>
+                                    <button 
+                                        onClick={() => deleteGoal(goal.goal_id)}
+                                        className="delete-button"
+                                        title="Delete goal"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                                <p>Target: ${goal.target_amount.toLocaleString()}</p>
+                                <p>Deadline: {new Date(goal.time_frame).toLocaleDateString()}</p>
+                                <p>Created: {new Date(goal.created_date).toLocaleDateString()}</p>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
