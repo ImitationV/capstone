@@ -91,8 +91,17 @@ Before you begin, ensure you have the following installed:
     python --version 
     pip --version
     ```
+    Go to Backend Folder and Create Dedicated Virtual Environment
+    ```bash
+    # Linux or Mac
+    python -m venv venv  # Creates a 'venv' folder
+    source venv/bin/activate 
+    
+    # Windows
+    .\venv\Scripts\activate
+    ```
 
-    Go to Backend Folder and Install Requirements
+    Install Requirements
     ```bash
     cd /backend
     pip install -r requirements.txt

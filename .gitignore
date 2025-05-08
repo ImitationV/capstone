@@ -1,2 +1,10 @@
+# Python virtual environments
 venv/
+.venv/
+env/
+*.py[cod]
+__pycache__/
+
+# Node Modules
 react/node_modules/
+backend/node_modules
