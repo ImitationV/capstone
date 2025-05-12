@@ -96,7 +96,7 @@ Before you begin, ensure you have the following installed:
     # Linux or Mac
     python -m venv venv  # Creates a 'venv' folder
     source venv/bin/activate 
-    
+
     # Windows
     .\venv\Scripts\activate
     ```
@@ -112,16 +112,23 @@ Before you begin, ensure you have the following installed:
 Once the dependencies are installed, you can start the development server:
 
 
-**Frontend: Using npm in 1 Terminal**
+**1. Backend: Using npm for chatbot (First Terminal Session)**
+```bash
+npm run dev
+```
+
+**2. Backend: Stock Analyzer (Second Terminal Session)**
+
+Make sure that this command is run under backend folder
+
+```bash
+python stock_analyzer_service.py
+```
+
+**3. Frontend (Third Terminal Session)l**
 
 ```bash
 npm run dev
 ```
 
-**Backend: Using uvicorn in another Terminal**
 
-Make sure that this command is run under backend folder
-
-```bash
-run "uvicorn main:app --reload"
-```
