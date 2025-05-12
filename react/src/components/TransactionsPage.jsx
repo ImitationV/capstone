@@ -1,226 +1,277 @@
-import React, { useState } from 'react';
-import '../styles/transactions.css'; 
-import { createClient } from '@supabase/supabase-js';
+import React, { useState, useEffect } from 'react';
+import '../styles/transactions.css';
 import ChatbotPopup from './ChatbotPopup';
+import { supabase } from './supabaseClient';
 
-// Initialize Supabase client 
-const supabaseUrl = 'https://idwneflrvwwcwkjlwbkz.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlkd25lZmxydnd3Y3dramx3Ymt6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE1ODM1NjcsImV4cCI6MjA1NzE1OTU2N30.RmyMAOfIS1h30ne2E4AT1RB-XWpjA2DN0Bo4FW-9bmQ';
-const supabase = createClient(supabaseUrl, supabaseKey);
+
 
 function TransactionsPage() {
-  const [transactionType, settransactionType] = useState('Expense');
-  const [transactionDate, setTransactionDate] = useState('');
-  const [transactionTime, setTransactionTime] = useState('');
-  const [category, setCategory] = useState('');
-  const [amount, setAmount] = useState('');
-  const [paymentMode, setPaymentMode] = useState('');
-  const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+    // State variables for form inputs and messages
+    const [transactionType, settransactionType] = useState('Expense');
+    const [transactionDate, setTransactionDate] = useState('');
+    const [transactionTime, setTransactionTime] = useState('');
+    const [category, setCategory] = useState('');
+    const [amount, setAmount] = useState('');
+    const [paymentMode, setPaymentMode] = useState('');
+    const [error, setError] = useState('');
+    const [successMessage, setSuccessMessage] = useState('');
+    const [currentUserId, setCurrentUserId] = useState(null); // State to store the logged-in user ID
 
-  const handletransactionTypeChange = (event) => {
-    settransactionType(event.target.value);
-  };
+    // Effect to get the user ID from localStorage
+    useEffect(() => {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (user && user.id) {
+            setCurrentUserId(user.id);
+        } else {
+            // Handle case where user is not logged in or user data is incomplete
+            setError('User not logged in. Please log in to add transactions.');
+        }
+    }, []); 
 
-  const handleDateChange = (event) => {
-    setTransactionDate(event.target.value);
-  };
-
-  const handleTimeChange = (event) => {
-    setTransactionTime(event.target.value);
-  };
-
-  const handleCategoryChange = (event) => {
-    setCategory(event.target.value);
-  };
-
-  const handleAmountChange = (event) => {
-    setAmount(event.target.value);
-  };
-
-  const handlePaymentModeChange = (event) => {
-    setPaymentMode(event.target.value);
-  };
-  
-  // Function to handle form submission
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setSuccessMessage('');
-    setError('');
-
-    if (!transactionDate || !transactionTime || !category || !amount || !paymentMode) {
-      setError('Please fill in all the required fields.');
-      return;
-    }
-
-    const transactionData = {
-      time_created: transactionTime, // Stores time 
-      date_created: transactionDate, // Stores date 
-      transaction_type: transactionType.toLowerCase(),
-      category: category, // Stores selected category
-      amount: parseFloat(amount), // Stores the amount
-      payment_mode: paymentMode.toLowerCase().replace(' ', ' '), // Stores payment method
-      user_id: 1, // test user ID [TESTING PURPOSES]
+    // Handlers for form input changes
+    const handletransactionTypeChange = (event) => {
+        settransactionType(event.target.value);
     };
 
-    try {
-      const { data, error } = await supabase
-        .from('TRANSACTIONS')
-        .insert([transactionData]);
+    const handleDateChange = (event) => {
+        setTransactionDate(event.target.value);
+    };
 
-      if (error) {
-        console.error('Error inserting data:', error);
-        setError('Failed to save transaction.');
-      } else {
-        console.log('Transaction saved:', data);
-        setSuccessMessage('Transaction saved successfully!');
-        settransactionType('Expense');
-        setTransactionDate('');
-        setTransactionTime('');
-        setCategory('');
-        setAmount('');
-        setPaymentMode('');
+    const handleTimeChange = (event) => {
+        setTransactionTime(event.target.value);
+    };
+
+    const handleCategoryChange = (event) => {
+        setCategory(event.target.value);
+    };
+
+    const handleAmountChange = (event) => {
+        setAmount(event.target.value);
+    };
+
+    const handlePaymentModeChange = (event) => {
+        setPaymentMode(event.target.value);
+    };
+
+    // Function to handle form submission
+    const handleSubmit = async (event) => {
+        event.preventDefault();
+        setSuccessMessage('');
         setError('');
-      }
-    } catch (error) {
-      console.error('An unexpected error occurred:', error);
-      setError('An unexpected error occurred.');
-    }
-  };
 
-  return (
-    <><div className="transactions-page">
-      <div className="transaction-container">
-        <h2>New Transaction</h2>
-        <form onSubmit={handleSubmit}>
-          {error && <p className="error">{error}</p>}
-          {successMessage && <p className="success">{successMessage}</p>}
+        // Check if user ID is available
+        if (!currentUserId) {
+            setError('User ID not found. Please log in.');
+            return;
+        }
 
-          <div className="form-group">
-            <label htmlFor="transactionType">Transaction Type *</label>
-            <div className="radio-group">
-              <label>
-                <input
-                  type="radio"
-                  name="transactionType"
-                  value="Income"
-                  checked={transactionType === 'Income'}
-                  onChange={handletransactionTypeChange}
-                />
-                Income
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="transactionType"
-                  value="Expense"
-                  checked={transactionType === 'Expense'}
-                  onChange={handletransactionTypeChange}
-                />
-                Expense
-              </label>
+        if (!transactionDate || !transactionTime || !category || !amount || !paymentMode) {
+            setError('Please fill in all the required fields.');
+            return;
+        }
+
+        // Validate amount is a positive number
+        const parsedAmount = parseFloat(amount);
+        if (isNaN(parsedAmount) || parsedAmount <= 0) {
+             setError('Please enter a valid positive amount.');
+             return;
+        }
+
+        // Format the date and time
+        const transactionData = {
+            time_created: transactionTime, // Stores time
+            date_created: transactionDate, // Stores date
+            transaction_type: transactionType.toLowerCase(),
+            category: category, // Stores selected category
+            amount: parsedAmount, // Stores the validated amount
+            payment_mode: paymentMode.toLowerCase(), // Stores payment method
+            user_id: currentUserId, // Use the fetched user ID
+        };
+
+        try {
+            const { data, error: insertError } = await supabase
+                .from('TRANSACTIONS')
+                .insert([transactionData]);
+
+            if (insertError) {
+                console.error('Error inserting data:', insertError);
+                setError(`Failed to save transaction: ${insertError.message}`);
+            } else {
+                console.log('Transaction saved:', data);
+                setSuccessMessage('Transaction saved successfully!');
+                // Reset form fields after successful submission
+                settransactionType('Expense');
+                setTransactionDate('');
+                setTransactionTime('');
+                setCategory('');
+                setAmount('');
+                setPaymentMode('');
+                setError(''); // Clear any previous errors
+            }
+        } catch (error) {
+            console.error('An unexpected error occurred:', error);
+            setError('An unexpected error occurred while saving the transaction.');
+        }
+    };
+
+    return (
+        <div className="transactions-page">
+            <div className="transaction-container">
+                <h2>New Transaction</h2>
+                <form onSubmit={handleSubmit}>
+                    {error && <p className="error-message">{error}</p>} 
+                    {successMessage && <p className="success-message">{successMessage}</p>}
+
+                    <div className="form-group">
+                        <label htmlFor="transactionType">Transaction Type *</label>
+                        <div className="radio-group">
+                            <label>
+                                <input
+                                    type="radio"
+                                    name="transactionType"
+                                    value="Income"
+                                    checked={transactionType === 'Income'}
+                                    onChange={handletransactionTypeChange}
+                                />
+                                Income
+                            </label>
+                            <label>
+                                <input
+                                    type="radio"
+                                    name="transactionType"
+                                    value="Expense"
+                                    checked={transactionType === 'Expense'}
+                                    onChange={handletransactionTypeChange}
+                                />
+                                Expense
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="form-group">
+                        <label htmlFor="transactionDate">Choose a Date *</label>
+                        <input
+                            type="date"
+                            id="transactionDate"
+                            value={transactionDate}
+                            onChange={handleDateChange}
+                            required
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label htmlFor="transactionTime">Choose a Time *</label>
+                        <input
+                            type="time"
+                            id="transactionTime"
+                            value={transactionTime}
+                            onChange={handleTimeChange}
+                            required
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label htmlFor="category">Category *</label>
+                        <select
+                            id="category"
+                            value={category}
+                            onChange={handleCategoryChange}
+                            required
+                        >
+                            <option value="">Select Category</option>
+                            {transactionType === 'Expense' ? (
+                                <>
+                                    <option value="food">Food</option>
+                                    <option value="transportation">Transportation</option>
+                                    <option value="entertainment">Entertainment</option>
+                                    <option value="utilities">Utilities</option>
+                                    <option value="shopping">Shopping</option>
+                                    <option value="health">Health</option>
+                                    <option value="education">Education</option>
+                                    <option value="other">Other Expense</option>
+                                </>
+                            ) : (
+                                <>
+                                    <option value="salary">Salary</option>
+                                    <option value="investment">Investment</option>
+                                    <option value="gift">Gift</option>
+                                    <option value="other_income">Other Income</option>
+                                </>
+                            )}
+                        </select>
+                    </div>
+
+                    <div className="form-group">
+                        <label htmlFor="amount">Enter Amount *</label>
+                        <input
+                            type="number"
+                            id="amount"
+                            value={amount}
+                            onChange={handleAmountChange}
+                            required
+                            min="0.01"  
+                            step="0.01" 
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label htmlFor="paymentMode">Payment Mode *</label>
+                        <div className="radio-group">
+                            <label>
+                                <input
+                                    type="radio"
+                                    name="paymentMode"
+                                    value="cash"
+                                    checked={paymentMode === 'cash'}
+                                    onChange={handlePaymentModeChange}
+                                    required
+                                />
+                                Cash
+                            </label>
+                            <label>
+                                <input
+                                    type="radio"
+                                    name="paymentMode"
+                                    value="debit card"
+                                    checked={paymentMode === 'debit card'}
+                                    onChange={handlePaymentModeChange}
+                                    required
+                                />
+                                Debit Card
+                            </label>
+                            <label>
+                                <input
+                                    type="radio"
+                                    name="paymentMode"
+                                    value="credit card"
+                                    checked={paymentMode === 'credit card'}
+                                    onChange={handlePaymentModeChange}
+                                    required
+                                />
+                                Credit Card
+                            </label>
+                             <label>
+                                <input
+                                    type="radio"
+                                    name="paymentMode"
+                                    value="online transfer"
+                                    checked={paymentMode === 'online transfer'}
+                                    onChange={handlePaymentModeChange}
+                                    required
+                                />
+                                Online Transfer
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="button-group">
+                        <button type="submit" className="create-button">Add Transaction</button>
+                    </div>
+                </form>
             </div>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="transactionDate">Choose a Date *</label>
-            <input
-              type="date"
-              id="transactionDate"
-              value={transactionDate}
-              onChange={handleDateChange}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="transactionTime">Choose a Time *</label>
-            <input
-              type="time"
-              id="transactionTime"
-              value={transactionTime}
-              onChange={handleTimeChange}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="category">Category *</label>
-            <select
-              id="category"
-              value={category}
-              onChange={handleCategoryChange}
-              required
-            >
-              <option value="">Select Category</option>
-              <option value="food">Food</option> {}
-              <option value="transportation">Transportation</option>
-              <option value="entertainment">Entertainment</option>
-              <option value="utilities">Utilities</option>
-              <option value="salary">Salary</option>
-              <option value="investment">Investment</option>
-              {}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="amount">Enter Amount *</label>
-            <input
-              type="number"
-              id="amount"
-              value={amount}
-              onChange={handleAmountChange}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="paymentMode">Payment Mode *</label>
-            <div className="radio-group">
-              <label>
-                <input
-                  type="radio"
-                  name="paymentMode"
-                  value="cash"
-                  checked={paymentMode === 'cash'}
-                  onChange={handlePaymentModeChange}
-                  required
-                />
-                Cash
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="paymentMode"
-                  value="debit card"
-                  checked={paymentMode === 'debit card'}
-                  onChange={handlePaymentModeChange}
-                  required
-                />
-                Debit Card
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="paymentMode"
-                  value="credit card"
-                  checked={paymentMode === 'credit card'}
-                  onChange={handlePaymentModeChange}
-                  required
-                />
-                Credit Card
-              </label>
-            </div>
-          </div>
-
-          <div className="button-group">
-            <button type="submit" className="create-button">Add</button>
-          </div>
-        </form>
-      </div>
-    </div><ChatbotPopup /></>
-
-  );
+            <ChatbotPopup />
+        </div>
+    );
 }
 
 export default TransactionsPage;
