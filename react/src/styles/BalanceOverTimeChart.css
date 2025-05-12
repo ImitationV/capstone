@@ -1,0 +1,91 @@
+/* Basic styling for the chart container */
+.chart-container {
+  margin: 20px auto;
+  padding: 20px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background-color: #ffffff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+  max-width: 800px;
+  font-family: sans-serif;
+}
+
+/* Style for chart title */
+.chart-container h2.chart-title {
+  text-align: center;
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 25px;
+  font-size: 1.6em;
+  font-weight: 600;
+}
+
+/* Styling for the Cartesian Grid */
+.recharts-cartesian-grid line {
+  stroke: #f0f0f0;
+  stroke-dasharray: 3 3;
+}
+
+/* Styling for X-axis labels */
+.recharts-xAxis .recharts-text {
+  font-size: 0.9em;
+  fill: #666;
+}
+
+/* Styling for Y-axis labels */
+.recharts-yAxis .recharts-text {
+  font-size: 0.9em;
+  fill: #666;
+}
+
+/* Styling for the chart Legend */
+.recharts-legend-wrapper {
+  margin-top: 10px;
+  font-size: 0.9em;
+  color: #555;
+}
+
+/* Styling for the Tooltip */
+.recharts-tooltip-wrapper {
+  background-color: #fff !important;
+  border: 1px solid #ccc !important;
+  border-radius: 4px !important;
+  padding: 10px !important;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  pointer-events: none !important;
+}
+
+/* Styling for the Tooltip label */
+.recharts-tooltip-label {
+  font-weight: bold;
+  margin-bottom: 5px;
+  color: #333;
+}
+
+/* Styling for Tooltip items list */
+.recharts-tooltip-item-list {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+/* Styling for individual Tooltip items */
+.recharts-tooltip-item {
+  font-size: 0.9em;
+  color: #555;
+}
+
+/* Basic responsive adjustments */
+@media (max-width: 600px) {
+  .chart-container {
+    padding: 15px;
+    margin: 15px;
+  }
+  .chart-container h2.chart-title {
+    font-size: 1.3em;
+  }
+  .recharts-xAxis .recharts-text,
+  .recharts-yAxis .recharts-text {
+    font-size: 0.8em;
+  }
+}
