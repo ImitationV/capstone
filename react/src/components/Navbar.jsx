@@ -12,6 +12,7 @@ function Navbar() {
     useEffect(() => {
         // Check if user is logged in via Google Auth
         supabase.auth.getSession().then(({ data: { session } }) => {
+            console.log('Current session:', session); // Debug session
             setIsGoogleUser(!!session);
             if (session?.user?.user_metadata?.full_name) {
                 setFname(session.user.user_metadata.full_name);
@@ -23,6 +24,18 @@ function Navbar() {
         if (user) {
             setFname(user.fname);
         }
+        console.log('Local storage user:', user); // Debug local storage
+        
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            console.log('Auth state changed:', _event, session); // Debug auth changes
+            setIsGoogleUser(!!session);
+            if (session?.user?.user_metadata?.full_name) {
+                setFname(session.user.user_metadata.full_name);
+            }
+        });
+
+        return () => subscription.unsubscribe();
     }, []);
 
     const handleLogout = async () => {

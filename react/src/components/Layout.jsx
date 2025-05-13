@@ -1,27 +1,42 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import '../styles/layout.css';
-import { useLocation } from 'react-router-dom';
+import { supabase } from '../../supabaseClient';
 import ChatbotPopup from './ChatbotPopup';
 
-
 function Layout({ children }) {
-    const location = useLocation(); // gets the current location
+    const location = useLocation();
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-    // Check if current path is login page or GoogleAuth page
-    const isLoginOrAuthPage = location.pathname === '/' || location.pathname === '/googleauth';
+    useEffect(() => {
+        // Check authentication status
+        const checkAuth = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            const localUser = JSON.parse(localStorage.getItem('user'));
+            console.log('Layout - Current session:', session); // Debug session
+            console.log('Layout - Local user:', localUser); // Debug local storage
+            console.log('Layout - Current path:', location.pathname); // Debug navigation
+            setIsAuthenticated(!!session || !!localUser);
+        };
+
+        checkAuth();
+    }, [location]);
+
+    // Don't show navbar on login page
+    if (location.pathname === '/') {
+        return <div className="content-area">{children}</div>;
+    }
 
     return (
         <div className="layout">
-
-            {/* shows the Navbar if the current path is not a login or auth page */}
-            {!isLoginOrAuthPage && <Navbar />}
+            {isAuthenticated && <Navbar />}
             <div className="content-area">
                 {children}
             </div>
 
             {/* Only show ChatbotPopup if NOT on login or auth page */}
-            {!isLoginOrAuthPage && <ChatbotPopup />}
+            {!isAuthenticated && <ChatbotPopup />}
         </div>
     );
 }
