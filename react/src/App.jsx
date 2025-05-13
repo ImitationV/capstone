@@ -6,7 +6,7 @@ import OverviewPage from './components/OverviewPage';
 import GoalsPage from './components/GoalsPage';
 import TransactionsPage from './components/TransactionsPage';
 import StockAnalyzer from './components/StockAnalyzer';
-import ChatbotPopup from './components/ChatbotPopup';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
     return (
@@ -14,10 +14,38 @@ function App() {
             <Layout>
                 <Routes>
                     <Route path="/" element={<LoginPage />} />
-                    <Route path="/overview" element={<OverviewPage />} />
-                    <Route path="/goals" element={<GoalsPage />} />
-                    <Route path="/transactions" element={<TransactionsPage />} />
-                    <Route path="/stock-analyzer" element={<StockAnalyzer />} />
+                    <Route 
+                        path="/overview" 
+                        element={
+                            <ProtectedRoute>
+                                <OverviewPage />
+                            </ProtectedRoute>
+                        } 
+                    />
+                    <Route 
+                        path="/goals" 
+                        element={
+                            <ProtectedRoute>
+                                <GoalsPage />
+                            </ProtectedRoute>
+                        } 
+                    />
+                    <Route 
+                        path="/transactions" 
+                        element={
+                            <ProtectedRoute>
+                                <TransactionsPage />
+                            </ProtectedRoute>
+                        } 
+                    />
+                    <Route 
+                        path="/stock-analyzer" 
+                        element={
+                            <ProtectedRoute>
+                                <StockAnalyzer />
+                            </ProtectedRoute>
+                        } 
+                    />
                 </Routes>
             </Layout>
         </Router>

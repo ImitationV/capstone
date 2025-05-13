@@ -1,9 +1,10 @@
 // LoginPage.jsx
 import React from 'react';
-import { useNavigate} from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import '../styles/login.css';
 import axios from 'axios';
+import GoogleAuth from './GoogleAuth';
 
 // Creates an axios instance with a predefined base URL for making API requests
 const api = axios.create({
@@ -77,6 +78,13 @@ function LoginPage() {
                         />
                     </div>
                     <button type='submit' onClick={handleLogin} className="sign-in-button">Sign In</button>
+                    
+                    <div className="login-divider">
+                        <span>OR</span>
+                    </div>
+                    
+                    <GoogleAuth />
+                    
                     <div className="create-account-link">
                         <a href="#">Create Account</a>
                     </div>

@@ -8,3 +8,8 @@ __pycache__/
 # Node Modules
 react/node_modules/
 backend/node_modules
+
+# .env files
+.env
+/react/.env
+/backend/.env

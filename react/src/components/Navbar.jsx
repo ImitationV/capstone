@@ -1,25 +1,44 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom'; 
-
+import { supabase } from '../../supabaseClient';
 import '../styles/navbar.css';
 
 function Navbar() {
     const navigate = useNavigate();
-    const location = useLocation(); // gets current location
+    const location = useLocation();
     const [fname, setFname] = useState('');
+    const [isGoogleUser, setIsGoogleUser] = useState(false);
 
     useEffect(() => {
-        // Get user information from localStorage
+        // Check if user is logged in via Google Auth
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setIsGoogleUser(!!session);
+            if (session?.user?.user_metadata?.full_name) {
+                setFname(session.user.user_metadata.full_name);
+            }
+        });
+
+        // Get user information from localStorage (for regular login)
         const user = JSON.parse(localStorage.getItem('user'));
         if (user) {
             setFname(user.fname);
         }
     }, []);
 
-    const goToLogin = () => {
-        // Clear user data from localStorage
-        localStorage.removeItem('user');
-        navigate('/');
+    const handleLogout = async () => {
+        try {
+            if (isGoogleUser) {
+                // Handle Google Auth logout
+                const { error } = await supabase.auth.signOut();
+                if (error) throw error;
+            }
+            
+            // Always clear localStorage
+            localStorage.removeItem('user');
+            navigate('/');
+        } catch (error) {
+            console.error('Error during logout:', error.message);
+        }
     };
 
     return (
@@ -38,7 +57,7 @@ function Navbar() {
             </nav>
             <div className="sidebar-footer">
                 <div className="username">Welcome, {fname}</div>
-                <button onClick={goToLogin} className="logout-button">Log Out</button>
+                <button onClick={handleLogout} className="logout-button">Log Out</button>
             </div>
         </div>
     );
