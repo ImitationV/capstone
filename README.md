@@ -113,19 +113,24 @@ Once the dependencies are installed, you can start the development server:
 
 
 **1. Backend: Using npm for chatbot (First Terminal Session)**
+
+Run under backend folder
+
 ```bash
 npm run dev
 ```
 
 **2. Backend: Stock Analyzer (Second Terminal Session)**
 
-Make sure that this command is run under backend folder
+Run this under the backend folder
 
 ```bash
 python stock_analyzer_service.py
 ```
 
-**3. Frontend (Third Terminal Session)l**
+**3. Frontend (Third Terminal Session)**
+
+Run this command under the react folder
 
 ```bash
 npm run dev
