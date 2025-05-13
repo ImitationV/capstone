@@ -1,13 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-import { createClient } from '@supabase/supabase-js';
 import '../styles/goals.css';
+import { supabase } from '../../supabaseClient';
 
-// Initialize Supabase client
-const supabaseUrl = 'https://idwneflrvwwcwkjlwbkz.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlkd25lZmxydnd3Y3dramx3Ymt6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE1ODM1NjcsImV4cCI6MjA1NzE1OTU2N30.RmyMAOfIS1h30ne2E4AT1RB-XWpjA2DN0Bo4FW-9bmQ';
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 function GoalsPage() {
     const [userGoals, setUserGoals] = useState([]);
