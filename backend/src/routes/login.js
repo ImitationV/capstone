@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { supabase } = require('../supabaseClient');
+const db = require('../services/db');
 require('dotenv').config();
 
 // Initialize Google AI with proper error handling
@@ -9,25 +10,13 @@ if (!API_KEY) {
     console.error('GOOGLE_AI_API_KEY is not set in environment variables');
 }
 
-
-
+// Regular login endpoint
 router.post('/api/login', async (req, res) => {
-    const { userid, password } = req.body;
-
     try {
-        // Query the users table to find the user using username instead of user_id
-        const { data: user, error } = await supabase
-            .from('USERS')
-            .select('*')
-            .eq('username', userid)
-            .eq('password', password)
-            .single();
-
-        if (error) {
-            console.error('Database error:', error);
-            return res.status(500).json({ success: false, message: 'Database error occurred' });
-        }
-
+        const { userid, password } = req.body;
+        // Verify user credentials
+        const user = await db.verifyUser(userid, password);
+        
         if (user) {
             console.log('Login successful');
             res.json({ 
@@ -37,15 +26,117 @@ router.post('/api/login', async (req, res) => {
                     id: user.id,
                     username: user.username,
                     fname: user.fname
-                } 
+                }
             });
         } else {
-            console.log('Login failed');
-            res.json({ success: false, message: 'Invalid username or password' });
+            res.status(401).json({ 
+                success: false, 
+                message: 'Invalid credentials' 
+            });
         }
     } catch (error) {
-        console.error('Error during login:', error);
-        res.status(500).json({ success: false, message: 'An error occurred during login' });
+        console.error('Login error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Internal server error' 
+        });
+    }
+});
+
+// Verify Google token endpoint
+router.post('/api/verify-google-token', async (req, res) => {
+    try {
+        const { token } = req.body;
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        
+        if (error) throw error;
+
+        if (user) {
+            // Check if user exists in our database
+            const dbUser = await db.getUserByEmail(user.email);
+            
+            if (!dbUser) {
+                // Create new user if doesn't exist
+                const newUser = await db.createGoogleUser({
+                    email: user.email,
+                    full_name: user.user_metadata.full_name,
+                    google_id: user.id
+                });
+                return res.json({ 
+                    success: true, 
+                    message: 'Google login successful',
+                    user: {
+                        id: newUser.id,
+                        email: newUser.email,
+                        fname: newUser.full_name,
+                        isGoogleUser: true
+                    }
+                });
+            }
+
+            return res.json({ 
+                success: true, 
+                message: 'Google login successful',
+                user: {
+                    id: dbUser.id,
+                    email: dbUser.email,
+                    fname: dbUser.full_name,
+                    isGoogleUser: true
+                }
+            });
+        }
+
+        res.status(401).json({ 
+            success: false, 
+            message: 'Invalid token' 
+        });
+    } catch (error) {
+        console.error('Token verification error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Internal server error' 
+        });
+    }
+});
+
+// Get user session endpoint
+router.get('/api/session', async (req, res) => {
+    try {
+        const { token } = req.headers;
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: 'No token provided'
+            });
+        }
+
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        
+        if (error) throw error;
+
+        if (user) {
+            const dbUser = await db.getUserByEmail(user.email);
+            return res.json({
+                success: true,
+                user: {
+                    id: dbUser?.id || user.id,
+                    email: user.email,
+                    fname: dbUser?.full_name || user.user_metadata.full_name,
+                    isGoogleUser: true
+                }
+            });
+        }
+
+        res.status(401).json({
+            success: false,
+            message: 'Invalid session'
+        });
+    } catch (error) {
+        console.error('Session verification error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
     }
 });
 
