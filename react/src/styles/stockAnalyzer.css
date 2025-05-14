@@ -200,34 +200,4 @@
 
 .error-boundary button:hover {
     background-color: #0056b3;
-}
-
-.model-performance {
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    padding: 20px;
-    margin-top: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.model-performance h3 {
-    color: #2c3e50;
-    margin-bottom: 15px;
-    font-size: 1.2em;
-}
-
-.model-performance ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.model-performance li {
-    margin-bottom: 10px;
-    color: #34495e;
-    font-size: 1.1em;
-}
-
-.model-performance li:last-child {
-    margin-bottom: 0;
 } 

@@ -52,4 +52,37 @@ router.post('/api/login', async (req, res) => {
     }
 });
 
+router.post('/api/register', async (req, res) => {
+    const { email, fname, lname, username, password } = req.body;
+    try {
+        // Check if username or email already exists
+        const { data: existingUser, error: checkError } = await supabase
+            .from('USERS')
+            .select('*')
+            .or(`username.eq.${username},email.eq.${email}`)
+            .maybeSingle();
+        if (checkError) {
+            console.error('Database error:', checkError);
+            return res.status(500).json({ success: false, message: 'Database error occurred' });
+        }
+        if (existingUser) {
+            return res.status(400).json({ success: false, message: 'Username or email already exists.' });
+        }
+        // Insert new user
+        const { data, error } = await supabase
+            .from('USERS')
+            .insert([{ email, fname, lname, username, password, created_at: new Date().toISOString() }])
+            .select()
+            .single();
+        if (error) {
+            console.error('Database error:', error);
+            return res.status(500).json({ success: false, message: 'Database error occurred' });
+        }
+        res.json({ success: true, user: { id: data.id, username: data.username, fname: data.fname } });
+    } catch (error) {
+        console.error('Error during registration:', error);
+        res.status(500).json({ success: false, message: 'An error occurred during registration' });
+    }
+});
+
 module.exports = router;

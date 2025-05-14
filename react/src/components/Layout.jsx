@@ -9,18 +9,21 @@ function Layout({ children }) {
     const location = useLocation(); // gets the current location
 
 
-    const isLoginPage = location.pathname === '/'; // checks if the current path is the login page ("/")
+    const isLoginOrRegisterPage = location.pathname === '/' || location.pathname === '/register';
+
+    // Only show ChatbotPopup if user is signed in
+    const isSignedIn = Boolean(localStorage.getItem('user'));
 
     return (
         <div className="layout">
 
-            {/* shows the Navbar if the current path is not the login page */}
-            {!isLoginPage && <Navbar />}
+            {/* shows the Navbar if the current path is not the login or register page */}
+            {!isLoginOrRegisterPage && <Navbar />}
             <div className="content-area">
                 {children}
             </div>
 
-            <ChatbotPopup />
+            {isSignedIn && <ChatbotPopup />}
         </div>
     );
 }

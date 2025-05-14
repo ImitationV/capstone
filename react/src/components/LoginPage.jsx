@@ -16,7 +16,8 @@ function LoginPage() {
     const [password, setPassword] = useState('');
     const [statusMessage, setStatusMessage] = useState('');
 
-    const handleLogin = async () => {
+    const handleLogin = async (e) => {
+        if (e) e.preventDefault();
         try {
             console.log('Sending login request with:', { userid: username, password: password });
             const response = await api.post('/api/login', {
@@ -48,7 +49,7 @@ function LoginPage() {
         <div className="login-page">
             <div className="login-container">
                 <h2>Budget Buddy</h2>
-                <div className="login-form">
+                <form className="login-form" onSubmit={handleLogin}>
                     {statusMessage && (
                         <div className={`status-message ${statusMessage.includes('successful') ? 'success' : 'error'}`}>
                             {statusMessage}
@@ -76,11 +77,11 @@ function LoginPage() {
                             placeholder="Enter your password"
                         />
                     </div>
-                    <button type='submit' onClick={handleLogin} className="sign-in-button">Sign In</button>
+                    <button type='submit' className="sign-in-button">Sign In</button>
                     <div className="create-account-link">
-                        <a href="#">Create Account</a>
+                        <a href="#" onClick={(e) => { e.preventDefault(); navigate('/register'); }}>Create Account</a>
                     </div>
-                </div>
+                </form>
             </div>
         </div>
     );

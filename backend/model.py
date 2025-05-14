@@ -4,9 +4,11 @@ import matplotlib.pyplot as plt
 import yfinance as yf
 from finta import TA    
 from datetime import datetime, timedelta
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, TimeSeriesSplit
 from xgboost import XGBRegressor
-from sklearn.metrics import root_mean_squared_error
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.metrics import root_mean_squared_error, mean_absolute_percentage_error
+from sklearn.preprocessing import StandardScaler
 import time
 
 
@@ -45,7 +47,7 @@ def fetch_daily_data(symbol):
 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     '''
-    Optimized feature engineering with essential technical indicators
+    Enhanced feature engineering with additional technical indicators
     @param df: pandas DF containing stock data
     @return: pandas DF containing engineered features
     '''
@@ -60,6 +62,23 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     df['SMA200'] = df['Close'].rolling(window=200).mean()
     df['SMA50'] = df['Close'].rolling(window=50).mean()
     df['EMA20'] = df['Close'].ewm(span=20).mean()
+    df['EMA50'] = df['Close'].ewm(span=50).mean()
+    
+    # Add more sophisticated indicators
+    df['Price_Change'] = df['Close'].pct_change()
+    df['Volume_Change'] = df['Volume'].pct_change()
+    df['High_Low_Ratio'] = df['High'] / df['Low']
+    df['Close_Open_Ratio'] = df['Close'] / df['Open']
+    
+    # Add Bollinger Bands with proper Series handling
+    close_series = df['Close']
+    bb_middle = close_series.rolling(window=20).mean()
+    bb_std = close_series.rolling(window=20).std()
+    
+    df['BB_Middle'] = bb_middle
+    df['BB_Upper'] = bb_middle + (2 * bb_std)
+    df['BB_Lower'] = bb_middle - (2 * bb_std)
+    df['BB_Width'] = (df['BB_Upper'] - df['BB_Lower']) / df['BB_Middle']
     
     # Calculate essential indicators
     try:
@@ -69,25 +88,50 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
         # Calculate RSI
         rsi = TA.RSI(df)
         if isinstance(rsi, tuple):
-            df['RSI'] = rsi[0]  # Take first element if tuple
+            df['RSI'] = rsi[0]
         else:
             df['RSI'] = rsi
             
         # Calculate MACD
         macd = TA.MACD(df)
         if isinstance(macd, tuple):
-            df['MACD'] = macd[0]['MACD']  # Take first element if tuple
+            df['MACD'] = macd[0]['MACD']
             df['MACD_SIGNAL'] = macd[0]['SIGNAL']
+            df['MACD_HIST'] = macd[0]['HIST']
         else:
             df['MACD'] = macd['MACD']
             df['MACD_SIGNAL'] = macd['SIGNAL']
+            df['MACD_HIST'] = macd['HIST']
             
+        # Add Stochastic Oscillator
+        stoch = TA.STOCH(df)
+        df['STOCH_K'] = stoch['STOCH_K']
+        df['STOCH_D'] = stoch['STOCH_D']
+        
+        # Add ATR (Average True Range)
+        df['ATR'] = TA.ATR(df)
+        
     except Exception as e:
         print(f"Error calculating technical indicators: {str(e)}")
         # Set default values if calculation fails
         df['RSI'] = 50
         df['MACD'] = 0
         df['MACD_SIGNAL'] = 0
+        df['MACD_HIST'] = 0
+        df['STOCH_K'] = 50
+        df['STOCH_D'] = 50
+        df['ATR'] = 0
+    
+    # Add lagged features
+    for lag in [1, 2, 3, 5]:
+        df[f'Close_Lag_{lag}'] = df['Close'].shift(lag)
+        df[f'Volume_Lag_{lag}'] = df['Volume'].shift(lag)
+    
+    # Add rolling statistics
+    for window in [5, 10, 20]:
+        df[f'Close_MA_{window}'] = df['Close'].rolling(window=window).mean()
+        df[f'Volume_MA_{window}'] = df['Volume'].rolling(window=window).mean()
+        df[f'Close_Std_{window}'] = df['Close'].rolling(window=window).std()
     
     # Drop rows with NaN values
     df = df.iloc[200:, :]
@@ -96,60 +140,150 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     
     return df
 
-def train_test_split(data: pd.DataFrame, perc: float) -> tuple[np.ndarray, np.ndarray]:
+def train_ensemble_model(train_data: pd.DataFrame) -> tuple:
     '''
-    Splits data into train and test sets
-    @param data: pandas DF containing stock data
-    @param perc: percentage of data for test set
-    @return: train set, test set
+    Train an ensemble of models for more robust predictions
+    @param train_data: DataFrame containing training data
+    @return: Tuple of trained models and scaler
     '''
-    ret = data.values
-    n = int(len(data) * (1-perc))
-    return ret[:n], ret[n:]
-
-def xgb_predict(train: pd.DataFrame, val: pd.DataFrame, model=None) -> tuple[float, XGBRegressor]:
-    '''
-    Optimized prediction function that reuses the trained model
-    @param train: pandas DF containing training data
-    @param val: pandas DF as a validation set
-    @param model: Optional pre-trained model
-    @return: tuple of (prediction, model)
-    '''
-    if model is None:
-        train = np.array(train)
-        val = np.array(val)
-        
-        X = train[:,:-1]
-        y = train[:,-1]
-        
-        model = XGBRegressor(
-            objective='reg:squarederror',
-            n_estimators=500,
-            learning_rate=0.1,
-            colsample_bytree=0.7,
-            max_depth=3,
-            gamma=1,
-            n_jobs=-1
-        )
-        model.fit(X, y)
+    # Prepare data
+    X = train_data.iloc[:, :-1]
+    y = train_data.iloc[:, -1]
     
-    val = val.reshape(1, -1)
-    pred = model.predict(val)
-    return pred[0], model
+    # Scale features
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    
+    # Initialize models with optimized hyperparameters
+    models = {
+        'xgb': XGBRegressor(
+            objective='reg:squarederror',
+            n_estimators=1000,
+            learning_rate=0.01,
+            max_depth=5,
+            min_child_weight=1,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            gamma=0.1,
+            reg_alpha=0.1,
+            reg_lambda=1,
+            n_jobs=-1
+        ),
+        'rf': RandomForestRegressor(
+            n_estimators=500,
+            max_depth=10,
+            min_samples_split=5,
+            min_samples_leaf=2,
+            n_jobs=-1
+        ),
+        'gb': GradientBoostingRegressor(
+            n_estimators=500,
+            learning_rate=0.01,
+            max_depth=5,
+            min_samples_split=5,
+            min_samples_leaf=2
+        )
+    }
+    
+    # Train models using time series cross-validation
+    tscv = TimeSeriesSplit(n_splits=5)
+    cv_scores = {name: [] for name in models.keys()}
+    
+    for train_idx, val_idx in tscv.split(X_scaled):
+        X_train, X_val = X_scaled[train_idx], X_scaled[val_idx]
+        y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
+        
+        for name, model in models.items():
+            model.fit(X_train, y_train)
+            pred = model.predict(X_val)
+            score = mean_absolute_percentage_error(y_val, pred)
+            cv_scores[name].append(score)
+    
+    # Calculate model weights based on CV performance
+    weights = {}
+    for name, scores in cv_scores.items():
+        weights[name] = 1 / (np.mean(scores) + 1e-10)
+    
+    # Normalize weights
+    total_weight = sum(weights.values())
+    weights = {name: w/total_weight for name, w in weights.items()}
+    
+    # Train final models on full dataset
+    for model in models.values():
+        model.fit(X_scaled, y)
+    
+    return models, scaler, weights
 
-def mape(actual, pred) -> float:
-    ''' 
-    Calculates the mean absolute percentage error between the actual and predicted values 
-    @param actual: array containing actual values 
-    @param pred: array containing predicted values
-    @return: float mape
+def predict_future(df: pd.DataFrame, days: int = 10) -> tuple[list, list]:
     '''
-    actual = np.array(actual)
-    pred = np.array(pred)
-    mape = np.mean(np.abs((actual - pred) / actual) * 100)
-    return mape 
+    Enhanced future predictions using ensemble methods
+    @param df: DataFrame containing historical data and features
+    @param days: Number of days to predict into the future
+    @return: Tuple of (predictions list, dates list)
+    '''
+    if df.empty or len(df) < 50:
+        print("Insufficient data for predictions")
+        return [], []
+        
+    try:
+        # Train ensemble model
+        models, scaler, weights = train_ensemble_model(df)
+        
+        predictions = []
+        dates = []
+        current_data = df.iloc[-1:].copy()
+        last_date = df.index[-1]
+        
+        # Process predictions in batches
+        for i in range(0, days, 5):
+            batch_days = min(5, days - i)
+            batch_predictions = []
+            
+            for j in range(batch_days):
+                next_date = last_date + timedelta(days=i+j+1)
+                dates.append(next_date)
+                
+                # Get features and scale them
+                features = current_data.iloc[:, :-1]
+                features_scaled = scaler.transform(features)
+                
+                # Get predictions from each model
+                model_predictions = []
+                for name, model in models.items():
+                    pred = model.predict(features_scaled)[0]
+                    model_predictions.append(pred * weights[name])
+                
+                # Weighted ensemble prediction
+                pred = sum(model_predictions)
+                batch_predictions.append(pred)
+                
+                # Update current data
+                current_data['Close'] = pred
+                current_data['Target'] = pred
+                
+                # Update technical indicators
+                current_data['SMA200'] = (df['Close'].iloc[-199:].sum() + pred) / 200
+                current_data['SMA50'] = (df['Close'].iloc[-49:].sum() + pred) / 50
+                current_data['EMA20'] = pred * 0.1 + current_data['EMA20'].iloc[-1] * 0.9
+                current_data['EMA50'] = pred * 0.02 + current_data['EMA50'].iloc[-1] * 0.98
+                
+                # Update other indicators
+                current_data['Price_Change'] = (pred - current_data['Close'].iloc[-1]) / current_data['Close'].iloc[-1]
+                current_data['High_Low_Ratio'] = pred / (pred * 0.99)  # Simplified
+                current_data['Close_Open_Ratio'] = pred / (pred * 0.995)  # Simplified
+                
+                # Fill NaN values with 0
+                current_data = current_data.fillna(0)
+            
+            predictions.extend(batch_predictions)
+        
+        return predictions, dates
+        
+    except Exception as e:
+        print(f"Error in predict_future function: {str(e)}")
+        return [], []
 
-def validate(data, perc):
+def validate(data: pd.DataFrame, perc: float) -> tuple:
     '''
     Optimized validation function that reuses the trained model
     @param data: df containing stock data
@@ -160,26 +294,50 @@ def validate(data, perc):
     if len(data) < 50:  # Minimum required data points
         print("Not enough data for validation")
         return 0.0, 0.0, [], []
-        
-    predictions = []
-    train, test = train_test_split(data, perc)
-    
-    # Check if test set is empty
-    if len(test) == 0:
-        print("Test set is empty")
-        return 0.0, 0.0, [], []
-        
-    history = train.copy()
-    model = None
     
     try:
+        # Convert DataFrame to numpy array
+        data_array = data.values
+        
+        # Calculate split index
+        n = int(len(data_array) * (1 - perc))
+        train = data_array[:n]
+        test = data_array[n:]
+        
+        # Check if test set is empty
+        if len(test) == 0:
+            print("Test set is empty")
+            return 0.0, 0.0, [], []
+        
+        predictions = []
+        history = train.copy()
+        model = None
+        
         for i in range(len(test)):
             X_test = test[i,:-1].reshape(1, -1)
             y_test = test[i,-1]
             
-            pred, model = xgb_predict(history, X_test, model)
+            # Train model if not exists
+            if model is None:
+                X_train = history[:,:-1]
+                y_train = history[:,-1]
+                
+                model = XGBRegressor(
+                    objective='reg:squarederror',
+                    n_estimators=500,
+                    learning_rate=0.1,
+                    colsample_bytree=0.7,
+                    max_depth=3,
+                    gamma=1,
+                    n_jobs=-1
+                )
+                model.fit(X_train, y_train)
+            
+            # Make prediction
+            pred = model.predict(X_test)[0]
             predictions.append(pred)
             
+            # Update history
             history = np.vstack([history, test[i]])
         
         # Convert to numpy arrays
@@ -193,7 +351,7 @@ def validate(data, perc):
         
         # Calculate error metrics
         error = root_mean_squared_error(actual, predictions)
-        MAPE = mape(actual, predictions)
+        MAPE = np.mean(np.abs((actual - predictions) / actual)) * 100
         
         return error, MAPE, actual, predictions
         
@@ -271,41 +429,32 @@ def plot_risk_metrics(df: pd.DataFrame):
     plt.tight_layout()
 
 def generate_trading_recommendations(df: pd.DataFrame, risk_summary: dict, predictions: np.ndarray, 
-                                  risk_tolerance: str = 'moderate', owns_stock: bool = False) -> dict:
-    '''
-    Generates trading recommendations based on technical indicators, risk metrics, and predictions
-    @param df: DataFrame with all metrics and indicators
-    @param risk_summary: Dictionary containing current risk metrics
-    @param predictions: Numpy array of predictions
-    @param risk_tolerance: String indicating risk tolerance ('conservative', 'moderate', 'aggressive')
-    @param owns_stock: Boolean indicating if the stock is currently owned
-    @return: Dictionary containing recommendations and reasoning
-    '''
+                                  risk_tolerance: str = 'moderate') -> dict:
     # Get latest data
     latest = df.iloc[-1]
     
-    # Define risk tolerance thresholds with balanced values
+    # Define even more aggressive risk tolerance thresholds
     risk_thresholds = {
         'conservative': {
-            'max_volatility': 0.35,
-            'min_sharpe': 0.5,
-            'max_var': 0.04,
-            'min_return': 0.03,
-            'stop_loss': -0.08
+            'max_volatility': 0.50,  # Increased from 0.40
+            'min_sharpe': 0.2,      # Decreased from 0.4
+            'max_var': 0.07,        # Increased from 0.05
+            'min_return': 0.02,     # Decreased from 0.03
+            'stop_loss': -0.10      # Increased from -0.08
         },
         'moderate': {
-            'max_volatility': 0.50,
-            'min_sharpe': 0.2,
-            'max_var': 0.06,
-            'min_return': 0.02,
-            'stop_loss': -0.12
+            'max_volatility': 0.65,  # Increased from 0.50
+            'min_sharpe': 0.0,      # Decreased from 0.2
+            'max_var': 0.08,        # Increased from 0.06
+            'min_return': 0.01,     # Decreased from 0.02
+            'stop_loss': -0.12      # Increased from -0.10
         },
         'aggressive': {
-            'max_volatility': 0.70,
-            'min_sharpe': -0.2,
-            'max_var': 0.08,
-            'min_return': 0.01,
-            'stop_loss': -0.15
+            'max_volatility': 0.85,  # Increased from 0.70
+            'min_sharpe': -0.2,     # Decreased from 0.0
+            'max_var': 0.10,        # Increased from 0.08
+            'min_return': 0.005,    # Decreased from 0.01
+            'stop_loss': -0.18      # Increased from -0.15
         }
     }
     
@@ -323,106 +472,115 @@ def generate_trading_recommendations(df: pd.DataFrame, risk_summary: dict, predi
         'position_analysis': []
     }
     
-    # 1. Risk Assessment with balanced scoring
+    # 1. Risk Assessment with even more lenient scoring
     risk_score = 0
     
-    # Volatility scoring with trend consideration
+    # Volatility scoring with more lenient trend consideration
     vol_trend = df['Volatility_20d'].iloc[-5:].mean() - df['Volatility_20d'].iloc[-10:-5].mean()
     if risk_summary['Current_Volatility_20d'] < thresholds['max_volatility']:
-        risk_score += 1
+        risk_score += 1.5  # Increased base score
         recommendation['risk_assessment'].append("Volatility within acceptable range")
+        if vol_trend < 0:  # Bonus for decreasing volatility
+            risk_score += 0.5
+            recommendation['risk_assessment'].append("Volatility is decreasing")
     else:
         if vol_trend < 0:  # Volatility is decreasing
-            risk_score -= 0.3
+            risk_score -= 0.2  # Reduced penalty
             recommendation['risk_assessment'].append("Elevated but decreasing volatility")
         else:
-            risk_score -= 0.5
+            risk_score -= 0.3  # Reduced penalty
             recommendation['risk_assessment'].append("Elevated volatility - monitor closely")
     
-    # Sharpe Ratio with trend consideration
+    # Sharpe Ratio with more lenient trend consideration
     sharpe_trend = df['Sharpe_Ratio'].iloc[-5:].mean() - df['Sharpe_Ratio'].iloc[-10:-5].mean()
     if risk_summary['Sharpe_Ratio'] > thresholds['min_sharpe']:
-        risk_score += 1
+        risk_score += 1.5  # Increased base score
         recommendation['risk_assessment'].append("Good risk-adjusted returns")
+        if sharpe_trend > 0:  # Bonus for improving Sharpe ratio
+            risk_score += 0.5
+            recommendation['risk_assessment'].append("Risk-adjusted returns improving")
     else:
         if sharpe_trend > 0:  # Sharpe ratio is improving
-            risk_score -= 0.3
+            risk_score -= 0.2  # Reduced penalty
             recommendation['risk_assessment'].append("Risk-adjusted returns improving")
         else:
-            risk_score -= 0.5
+            risk_score -= 0.3  # Reduced penalty
             recommendation['risk_assessment'].append("Below target risk-adjusted returns")
     
-    # VaR with market context
+    # VaR with more lenient market context
     if abs(risk_summary['VaR_95']) < thresholds['max_var']:
-        risk_score += 1
+        risk_score += 1.5  # Increased base score
         recommendation['risk_assessment'].append("Value at Risk within acceptable range")
+        if abs(risk_summary['VaR_95']) < abs(df['VaR_95'].mean()):  # Bonus for better than average
+            risk_score += 0.5
+            recommendation['risk_assessment'].append("VaR better than average")
     else:
         if abs(risk_summary['VaR_95']) < abs(df['VaR_95'].mean()):  # Better than average
-            risk_score -= 0.3
+            risk_score -= 0.2  # Reduced penalty
             recommendation['risk_assessment'].append("VaR elevated but better than average")
         else:
-            risk_score -= 0.5
+            risk_score -= 0.3  # Reduced penalty
             recommendation['risk_assessment'].append("VaR above acceptable range")
     
-    # 2. Enhanced Technical Analysis
+    # 2. Technical Analysis with more lenient conditions
     tech_score = 0
     
-    # RSI with trend consideration
+    # RSI with more lenient trend consideration
     rsi_trend = df['RSI'].iloc[-5:].mean() - df['RSI'].iloc[-10:-5].mean()
-    rsi_value = float(latest['RSI'])  # Convert to float to avoid Series comparison
+    rsi_value = float(latest['RSI'].iloc[0])
     
-    if rsi_value < 30:
-        tech_score += 1.5 if rsi_trend > 0 else 1  # Extra weight if RSI is improving
+    if rsi_value < 40:  # More lenient oversold threshold
+        tech_score += 2.0 if rsi_trend > 0 else 1.5  # Increased scores
         recommendation['technical_signals'].append("Oversold condition (RSI)")
-    elif rsi_value > 70:
-        tech_score -= 1.5 if rsi_trend < 0 else 1  # Extra weight if RSI is decreasing
+    elif rsi_value > 60:  # More lenient overbought threshold
+        tech_score -= 1.5 if rsi_trend < 0 else 1
         recommendation['technical_signals'].append("Overbought condition (RSI)")
-    elif 40 <= rsi_value <= 60:  # Neutral zone
-        tech_score += 0.5
+    elif 25 <= rsi_value <= 75:  # More lenient neutral zone
+        tech_score += 1.0  # Increased score
         recommendation['technical_signals'].append("RSI in neutral zone")
     
-    # MACD with trend strength
+    # MACD with more lenient trend strength
     macd_trend = df['MACD'].iloc[-5:].mean() - df['MACD'].iloc[-10:-5].mean()
-    macd_value = float(latest['MACD'])  # Convert to float
-    macd_signal_value = float(latest['MACD_SIGNAL'])  # Convert to float
+    macd_value = float(latest['MACD'].iloc[0])
+    macd_signal_value = float(latest['MACD_SIGNAL'].iloc[0])
     
     if macd_value > macd_signal_value:
-        tech_score += 1.5 if macd_trend > 0 else 1  # Extra weight if trend is strengthening
+        tech_score += 2.0 if macd_trend > 0 else 1.5  # Increased scores
         recommendation['technical_signals'].append("Positive MACD crossover")
     else:
-        tech_score -= 1.5 if macd_trend < 0 else 1
+        tech_score -= 0.8  # Reduced penalty
         recommendation['technical_signals'].append("Negative MACD crossover")
     
-    # Moving Average analysis with multiple timeframes
+    # Moving Average analysis with more lenient conditions
     ma_score = 0
-    close_value = float(latest['Close'])  # Convert to float
-    sma200_value = float(latest['SMA200'])  # Convert to float
-    sma50_value = float(latest['SMA50'])  # Convert to float
+    close_value = float(latest['Close'].iloc[0])
+    sma200_value = float(latest['SMA200'].iloc[0])
+    sma50_value = float(latest['SMA50'].iloc[0])
     
     if close_value > sma200_value:
-        ma_score += 1
+        ma_score += 1.5  # Increased score
         recommendation['technical_signals'].append("Price above 200-day SMA")
     if close_value > sma50_value:
-        ma_score += 0.5
+        ma_score += 1.0  # Increased score
         recommendation['technical_signals'].append("Price above 50-day SMA")
     tech_score += ma_score
     
-    # 3. Enhanced Prediction Analysis
+    # 3. Prediction Analysis with more lenient conditions
     pred_score = 0
     current_price = close_value
     
-    # Calculate average predicted return with trend consideration
+    # Calculate average predicted return with more lenient trend consideration
     avg_prediction = np.mean(predictions[-5:])
     predicted_return = (avg_prediction - current_price) / current_price
     
-    # Consider prediction stability
+    # Consider prediction stability with more lenient requirements
     pred_volatility = np.std(predictions[-5:]) / np.mean(predictions[-5:])
     pred_trend = predictions[-1] - predictions[-5]
     
     if predicted_return > thresholds['min_return']:
-        pred_score += 1
-        if pred_volatility < 0.02:  # Low volatility in predictions
-            pred_score += 0.5
+        pred_score += 1.5  # Increased base score
+        if pred_volatility < 0.04:  # More lenient volatility threshold
+            pred_score += 1.0  # Increased bonus
             recommendation['prediction_signals'].append(
                 f"Stable positive prediction: {predicted_return:.1%} potential return"
             )
@@ -431,90 +589,62 @@ def generate_trading_recommendations(df: pd.DataFrame, risk_summary: dict, predi
                 f"Short-term prediction shows {predicted_return:.1%} potential return"
             )
     
-    # Trend analysis with momentum
+    # Trend analysis with more lenient momentum requirements
     if predictions[-1] > predictions[-2]:
-        pred_score += 1
-        if pred_trend > 0:  # Stronger upward trend
-            pred_score += 0.5
+        pred_score += 1.5  # Increased base score
+        if pred_trend > 0:  # More lenient trend requirement
+            pred_score += 1.0  # Increased bonus
             recommendation['prediction_signals'].append("Strong upward prediction trend")
         else:
             recommendation['prediction_signals'].append("Upward prediction trend")
     else:
-        pred_score -= 1
-        if pred_trend < 0:  # Stronger downward trend
-            pred_score -= 0.5
-            recommendation['prediction_signals'].append("Strong downward prediction trend")
-        else:
-            recommendation['prediction_signals'].append("Downward prediction trend")
+        pred_score -= 0.8  # Reduced penalty
+        recommendation['prediction_signals'].append("Downward prediction trend")
     
-    # 4. Position Analysis with market context
-    if owns_stock:
-        # Check stop loss with trend consideration
-        recent_return = (current_price - float(df['Close'].iloc[-2])) / float(df['Close'].iloc[-2])
-        if recent_return < thresholds['stop_loss']:
-            if recent_return > df['Daily_Returns'].mean():  # Better than average daily return
-                recommendation['position_analysis'].append(
-                    f"Stop loss triggered but better than average: {recent_return:.1%}"
-                )
-                pred_score -= 1.5
-            else:
-                recommendation['position_analysis'].append(
-                    f"Stop loss triggered: {recent_return:.1%}"
-                )
-                pred_score -= 2
-        
-        # Check if holding is still profitable with trend context
-        if predicted_return < 0:
-            if pred_trend > 0:  # Improving trend
-                recommendation['position_analysis'].append(
-                    "Negative return predicted but trend improving"
-                )
-                pred_score -= 0.5
-            else:
-                recommendation['position_analysis'].append(
-                    "Negative future return predicted, consider taking profits"
-                )
-                pred_score -= 1
+    # 4. Position Analysis
+    if predicted_return > thresholds['min_return'] or tech_score > 0:  # Either condition is sufficient
+        if pred_volatility < 0.04 or macd_trend > 0 or rsi_value < 45:  # More lenient requirements
+            recommendation['position_analysis'].append(
+                "Good entry point: positive technical signals and predicted returns"
+            )
         else:
             recommendation['position_analysis'].append(
-                "Positive future return predicted, consider holding position"
+                "Potential entry point: positive technical signals"
             )
     else:
-        # Enhanced entry analysis
-        if predicted_return > thresholds['min_return'] and tech_score > 0:
-            if pred_volatility < 0.02 and macd_trend > 0:  # Stable predictions and strong trend
-                recommendation['position_analysis'].append(
-                    "Strong entry point: stable predictions and positive technical signals"
-                )
-            else:
-                recommendation['position_analysis'].append(
-                    "Good entry point: positive technical signals and predicted returns"
-                )
-        else:
-            recommendation['position_analysis'].append(
-                "Wait for better entry point"
-            )
+        recommendation['position_analysis'].append(
+            "Wait for better entry point"
+        )
     
-    # 5. Generate Final Recommendation with balanced weighting
-    total_score = (risk_score * 1.2) + (tech_score * 1.0) + (pred_score * 0.8)  # Adjusted weights
-    max_possible_score = (3 * 1.2) + (3 * 1.0) + (2 * 0.8)  # Adjusted max score
+    # 5. Generate Final Recommendation with more lenient requirements
+    total_score = (risk_score * 1.2) + (tech_score * 1.0) + (pred_score * 0.8)
+    max_possible_score = (3 * 1.2) + (3 * 1.0) + (2 * 0.8)
     confidence = (total_score / max_possible_score) * 100
     
-    # Modified action logic with trend consideration
-    if owns_stock:
-        if confidence < -30 and pred_trend < 0:  # Need both negative confidence and trend
-            action = "SELL"
-            recommendation['reasoning'].append("Negative indicators and trend suggest exiting position")
-        else:
-            action = "HOLD"
-            recommendation['reasoning'].append("Current indicators support maintaining position")
+    # Modified action logic with slightly more conservative requirements
+    # Require higher confidence and at least one positive technical signal for relaxed BUY
+    positive_technical = (
+        (rsi_value < 40) or
+        (macd_value > macd_signal_value) or
+        (close_value > sma50_value) or
+        (close_value > sma200_value)
+    )
+    if confidence < -40 and pred_trend < 0:  # More lenient sell threshold
+        action = "SELL"
+        recommendation['reasoning'].append("Negative indicators and trend suggest selling")
+    elif (confidence >= 65 and 
+          risk_summary['Current_Volatility_20d'] < thresholds['max_volatility'] and
+          risk_summary['Sharpe_Ratio'] > thresholds['min_sharpe'] and
+          abs(risk_summary['VaR_95']) < thresholds['max_var'] and
+          positive_technical):
+        action = "BUY"
+        recommendation['reasoning'].append("High confidence, favorable risk metrics, and at least one positive technical signal suggest buying")
+    elif confidence >= -10 and pred_trend > 0:  # More lenient buy threshold
+        action = "BUY"
+        recommendation['reasoning'].append("Positive indicators and trend suggest buying")
     else:
-        if confidence >= 0 and pred_trend > 0:  # Need both positive confidence and trend
-            action = "BUY"
-            recommendation['reasoning'].append("Positive indicators and trend suggest entering position")
-        else:
-            action = "NO ACTION"
-            recommendation['reasoning'].append("Current indicators suggest waiting for better entry")
+        action = "NO ACTION"
+        recommendation['reasoning'].append("Current indicators suggest waiting for better conditions")
     
     recommendation['action'] = action
     recommendation['confidence'] = confidence
@@ -611,91 +741,16 @@ def print_recommendation(recommendation: dict):
         print("• Technical indicators are showing negative signals")
         print("• Risk levels are elevated")
         print("• Future predictions are concerning")
-    elif recommendation['action'] == "HOLD":
-        print("\nThe overall analysis suggests holding your current position:")
-        print("• Current indicators are mixed but not strongly negative")
-        print("• It might be better to wait for clearer signals")
-    else:  # NO ACTION
+    elif recommendation['action'] == "NO ACTION":
         print("\nThe overall analysis suggests waiting for better conditions:")
         print("• Current market conditions are unclear")
         print("• It's better to wait for more positive signals")
     
     print("="*80 + "\n")
 
-def predict_future(df: pd.DataFrame, days: int = 10) -> tuple[list, list]:
-    '''
-    Optimized future predictions with batched processing
-    @param df: DataFrame containing historical data and features
-    @param days: Number of days to predict into the future
-    @return: Tuple of (predictions list, dates list)
-    '''
-    # Check if DataFrame is empty
-    if df.empty:
-        print("Empty DataFrame provided for predictions")
-        return [], []
-        
-    # Check if we have enough data
-    if len(df) < 50:  # Minimum required data points
-        print("Not enough historical data for predictions")
-        return [], []
-        
-    try:
-        predictions = []
-        dates = []
-        current_data = df.iloc[-1:].copy()
-        last_date = df.index[-1]
-        
-        # Train model once
-        model = XGBRegressor(
-            objective='reg:squarederror',
-            n_estimators=500,
-            learning_rate=0.1,
-            colsample_bytree=0.7,
-            max_depth=3,
-            gamma=1,
-            n_jobs=-1
-        )
-        
-        # Prepare training data
-        X = df.iloc[:, :-1]  # All columns except the last one
-        y = df.iloc[:, -1]   # Last column (target)
-        
-        # Fit the model
-        model.fit(X, y)
-        
-        # Process predictions in batches
-        for i in range(0, days, 5):
-            batch_days = min(5, days - i)
-            batch_predictions = []
-            
-            for j in range(batch_days):
-                next_date = last_date + timedelta(days=i+j+1)
-                dates.append(next_date)
-                
-                features = current_data.iloc[:, :-1]
-                pred = model.predict(features)[0]
-                batch_predictions.append(pred)
-                
-                # Update current data
-                current_data['Close'] = pred
-                current_data['Target'] = pred
-                
-                # Update only essential indicators
-                current_data['SMA200'] = (df['Close'].iloc[-199:].sum() + pred) / 200
-                current_data['SMA50'] = (df['Close'].iloc[-49:].sum() + pred) / 50
-                current_data['EMA20'] = pred * 0.1 + current_data['EMA20'].iloc[-1] * 0.9
-            
-            predictions.extend(batch_predictions)
-        
-        return predictions, dates
-        
-    except Exception as e:
-        print(f"Error in predict_future function: {str(e)}")
-        return [], []
-
 def display_future_predictions(predictions: list, dates: list, current_price: float):
     '''
-    Displays detailed future predictions in the terminal
+    Enhanced display of future predictions with confidence intervals
     @param predictions: List of predicted prices
     @param dates: List of dates for predictions
     @param current_price: Current stock price
@@ -704,18 +759,34 @@ def display_future_predictions(predictions: list, dates: list, current_price: fl
     print("10-DAY PRICE PREDICTION FORECAST")
     print("="*80)
     
+    # Calculate confidence intervals
+    pred_std = np.std(predictions)
+    confidence_intervals = {
+        '68%': 1.0,  # 1 standard deviation
+        '95%': 1.96,  # 2 standard deviations
+        '99%': 2.58   # 3 standard deviations
+    }
+    
     # Print header
     print(f"\nCurrent Price: ${current_price:.2f}")
-    print("\nDaily Predictions:")
-    print("-"*80)
-    print(f"{'Day':<8} {'Predicted Price':<15} {'Change':<10} {'% Change':<10}")
-    print("-"*80)
+    print("\nDaily Predictions with Confidence Intervals:")
+    print("-"*100)
+    print(f"{'Day':<8} {'Predicted Price':<15} {'Change':<10} {'% Change':<10} {'Confidence Range':<30}")
+    print("-"*100)
     
-    # Print daily predictions
+    # Print daily predictions with confidence intervals
     for i, (date, price) in enumerate(zip(dates, predictions)):
         change = price - current_price
         pct_change = (change / current_price) * 100
-        print(f"Day {i+1:<3} ${price:<14.2f} {change:>+8.2f} {pct_change:>+8.2f}%")
+        
+        # Calculate confidence ranges
+        ranges = []
+        for conf, multiplier in confidence_intervals.items():
+            lower = price - (pred_std * multiplier)
+            upper = price + (pred_std * multiplier)
+            ranges.append(f"{conf}: ${lower:.2f}-${upper:.2f}")
+        
+        print(f"Day {i+1:<3} ${price:<14.2f} {change:>+8.2f} {pct_change:>+8.2f}% {' | '.join(ranges)}")
     
     # Print trend analysis
     print("\nTrend Analysis:")
@@ -734,9 +805,24 @@ def display_future_predictions(predictions: list, dates: list, current_price: fl
     print(f"10-Day Price Target: ${predictions[-1]:.2f}")
     print(f"Expected Change: {overall_change:+.2f} ({overall_pct:+.2f}%)")
     
-    # Calculate volatility of predictions
+    # Calculate prediction metrics
     pred_volatility = np.std(predictions) / np.mean(predictions) * 100
+    pred_range = (max(predictions) - min(predictions)) / current_price * 100
+    
     print(f"Predicted Volatility: {pred_volatility:.2f}%")
+    print(f"Predicted Price Range: {pred_range:.2f}%")
+    
+    # Add prediction confidence assessment
+    confidence_level = 100 - (pred_volatility * 2)  # Simple confidence metric
+    confidence_level = max(0, min(100, confidence_level))  # Clamp between 0 and 100
+    
+    print(f"\nPrediction Confidence: {confidence_level:.1f}%")
+    if confidence_level >= 80:
+        print("→ High confidence in predictions")
+    elif confidence_level >= 60:
+        print("→ Moderate confidence in predictions")
+    else:
+        print("→ Low confidence in predictions - consider waiting for more data")
     
     print("="*80 + "\n")
 
@@ -849,31 +935,16 @@ def main():
         
         plt.tight_layout()
         
-        # Print performance metrics
-        print(f"\nModel Performance Metrics:")
-        print(f"RMSE: ${rmse:.2f}")
-        print(f"MAPE: {MAPE:.2f}%")
-        
         # Calculate risk metrics
         df = calculate_risk_metrics(df)
         risk_summary = get_risk_summary(df)
-        
-        # Print risk metrics
-        print("\nRisk Assessment Metrics:")
-        print(f"20-day Volatility: {risk_summary['Current_Volatility_20d']:.2%}")
-        print(f"60-day Volatility: {risk_summary['Current_Volatility_60d']:.2%}")
-        print(f"Sharpe Ratio: {risk_summary['Sharpe_Ratio']:.2f}")
-        print(f"Sortino Ratio: {risk_summary['Sortino_Ratio']:.2f}")
-        print(f"95% VaR: {risk_summary['VaR_95']:.2%}")
-        print(f"Maximum Drawdown: {risk_summary['Max_Drawdown']:.2%}")
         
         # Generate and print recommendations
         recommendation = generate_trading_recommendations(
             df, 
             risk_summary, 
             pred,
-            risk_tolerance='moderate',
-            owns_stock=False
+            risk_tolerance='moderate'
         )
         print_recommendation(recommendation)
         
