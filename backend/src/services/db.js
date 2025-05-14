@@ -36,7 +36,46 @@ async function fetchUsers() {
   }
 }
 
+// Function to calculate current balance from TRANSACTIONS table
+async function fetchCurrentBalance(userId) {
+  try {
+    // Fetch all transactions for the given user with type 'income' or 'expense'
+    const { data, error } = await supabase
+      .from('TRANSACTIONS')
+      .select('amount, transaction_type')
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Supabase Error:', error.message);
+      console.error('Error details:', error);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      console.log('No transactions found in the table for user', userId);
+      return 0;
+    }
+
+    // Sum up income and expense
+    let income = 0;
+    let expense = 0;
+    data.forEach(tx => {
+      if (tx.transaction_type === 'income') {
+        income += tx.amount;
+      } else if (tx.transaction_type === 'expense') {
+        expense += tx.amount;
+      }
+    });
+    const balance = income - expense;
+    return balance;
+  } catch (err) {
+    console.error('Unexpected error:', err);
+    throw err;
+  }
+}
+
 module.exports = {
   supabase,
-  fetchUsers
+  fetchUsers,
+  fetchCurrentBalance
 };

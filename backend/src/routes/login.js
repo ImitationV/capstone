@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
+const { fetchCurrentBalance } = require('../services/db');
 
 // Initialize Google AI with proper error handling
 const API_KEY = process.env.GOOGLE_API_KEY;
@@ -82,6 +83,21 @@ router.post('/api/register', async (req, res) => {
     } catch (error) {
         console.error('Error during registration:', error);
         res.status(500).json({ success: false, message: 'An error occurred during registration' });
+    }
+});
+
+// Endpoint to get current balance for a user
+router.get('/api/balance', async (req, res) => {
+    const userId = req.query.userId;
+    if (!userId) {
+        return res.status(400).json({ success: false, message: 'Missing userId parameter' });
+    }
+    try {
+        const balance = await fetchCurrentBalance(userId);
+        res.json({ success: true, balance });
+    } catch (error) {
+        console.error('Error fetching balance:', error);
+        res.status(500).json({ success: false, message: 'Error fetching balance' });
     }
 });
 
