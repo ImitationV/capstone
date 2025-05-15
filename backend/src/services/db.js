@@ -125,12 +125,12 @@ async function fetchCurrentBalance(userId) {
     throw err;
   }
 }
-
+module.exports = new DatabaseService();
+/*
 module.exports = {
   supabase,
   fetchUsers,
   fetchCurrentBalance
   //dbService: new DatabaseService()
 };
-
-//module.exports = new DatabaseService();
+*/

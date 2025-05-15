@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { supabase } from './supabaseClient';
+import { supabase } from '../../supabaseClient';
 import '../styles/BalanceOverTimeChart.css';
 
 // function to get the date string (YYYY-MM-DD) from a timestamp

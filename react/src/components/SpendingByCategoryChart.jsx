@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, Sector } from 'recharts';
-import { supabase } from './supabaseClient';
+import { supabase } from '../../supabaseClient';
 import '../styles/SpendingByCategoryChart.css';
 
 // color palette

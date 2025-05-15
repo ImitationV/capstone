@@ -5,7 +5,7 @@ import {ThemeSupa} from '@supabase/auth-ui-shared';
 import {Auth} from '@supabase/auth-ui-react';
 import { useNavigate } from 'react-router-dom';
 
-{/* Using login.css for styling for now - change later or reflect onto the LoginPage.jsx file */}
+
 
 function GoogleAuth() {
    const [session, setSession] = useState(null);
