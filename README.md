@@ -23,12 +23,6 @@ With an intuitive, minimalistic UI, users will easily be able to start and track
 - Settings
 - Receipt Scanning
 
-## USER INTERFACE
-
-Typography:
-
-Color Schema:
-
 ## Database Integration
 
 Option 1:
@@ -73,7 +67,7 @@ Before you begin, ensure you have the following installed:
 
 3.  **Install Dependencies:**
 
-    Use npm or yarn to install the project's dependencies:
+    **Front-end**
 
     **Using npm:**
 
@@ -89,12 +83,57 @@ Before you begin, ensure you have the following installed:
 
     This command will read the `package.json` file and install the necessary packages listed in the `dependencies` and `devDependencies` sections.
 
+    **Backend**
+
+    Check Python and PIP:
+
+    ```bash
+    python --version 
+    pip --version
+    ```
+    Go to Backend Folder and Create Dedicated Virtual Environment
+    ```bash
+    # Linux or Mac
+    python -m venv venv  # Creates a 'venv' folder
+    source venv/bin/activate 
+
+    # Windows
+    .\venv\Scripts\activate
+    ```
+
+    Install Requirements
+    ```bash
+    cd /backend
+    pip install -r requirements.txt
+    ```
+
 #### Running the Application
 
 Once the dependencies are installed, you can start the development server:
 
-**Using npm:**
+
+**1. Backend: Using npm for chatbot (First Terminal Session)**
+
+Run under backend folder
 
 ```bash
 npm run dev
 ```
+
+**2. Backend: Stock Analyzer (Second Terminal Session)**
+
+Run this under the backend folder
+
+```bash
+python stock_analyzer_service.py
+```
+
+**3. Frontend (Third Terminal Session)**
+
+Run this command under the react folder
+
+```bash
+npm run dev
+```
+
+
