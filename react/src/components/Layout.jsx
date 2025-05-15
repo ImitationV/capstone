@@ -20,6 +20,7 @@ function Layout({ children }) {
             setIsAuthenticated(!!session || !!localUser);
         };
 
+<<<<<<< HEAD
         checkAuth();
     }, [location]);
 
@@ -31,12 +32,28 @@ function Layout({ children }) {
     return (
         <div className="layout">
             {isAuthenticated && <Navbar />}
+=======
+    const isLoginOrRegisterPage = location.pathname === '/' || location.pathname === '/register';
+
+    // Only show ChatbotPopup if user is signed in
+    const isSignedIn = Boolean(localStorage.getItem('user'));
+
+    return (
+        <div className="layout">
+
+            {/* shows the Navbar if the current path is not the login or register page */}
+            {!isLoginOrRegisterPage && <Navbar />}
+>>>>>>> main
             <div className="content-area">
                 {children}
             </div>
 
+<<<<<<< HEAD
             {/* Only show ChatbotPopup if NOT on login or auth page */}
             {!isAuthenticated && <ChatbotPopup />}
+=======
+            {isSignedIn && <ChatbotPopup />}
+>>>>>>> main
         </div>
     );
 }

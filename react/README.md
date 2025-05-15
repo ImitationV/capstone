@@ -1,12 +1,52 @@
-# React + Vite
+## Run it locally
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+#### Prerequisites
 
-Currently, two official plugins are available:
+Before you begin, ensure you have the following installed:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Node.js:** (Recommended version: Latest LTS) - You can download it from [nodejs.org](https://nodejs.org/).
+- **npm** (Node Package Manager) or **yarn** (alternative package manager) - npm comes with Node.js, and you can install yarn separately from [yarnpkg.com](https://yarnpkg.com/).
 
-## Expanding the ESLint configuration
+#### Installation
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1.  **Clone the Repository (If you haven't already):**
+
+    If you downloaded the project as a ZIP file, extract it to your desired location. If you cloned it using Git, skip this step.
+
+2.  **Navigate to the Project Directory:**
+
+    Open your terminal or command prompt and navigate to the project's root directory:
+
+    ```bash
+    cd your-project-directory
+    ```
+
+    Replace `your-project-directory` with the actual name of your project folder.
+
+3.  **Install Dependencies:**
+
+    Use npm or yarn to install the project's dependencies:
+
+    **Using npm:**
+
+    ```bash
+    npm install
+    ```
+
+    **Using yarn:**
+
+    ```bash
+    yarn install
+    ```
+
+    This command will read the `package.json` file and install the necessary packages listed in the `dependencies` and `devDependencies` sections.
+
+#### Running the Application
+
+Once the dependencies are installed, you can start the development server:
+
+**Using npm:**
+
+```bash
+npm run dev
+```

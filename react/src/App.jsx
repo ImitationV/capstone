@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import LoginPage from './components/LoginPage';
@@ -7,6 +6,8 @@ import GoalsPage from './components/GoalsPage';
 import TransactionsPage from './components/TransactionsPage';
 import StockAnalyzer from './components/StockAnalyzer';
 import ProtectedRoute from './components/ProtectedRoute';
+import RegisterPage from './components/RegisterPage';
+import SettingsPage from './components/SettingsPage';
 
 function App() {
     return (
@@ -14,6 +15,14 @@ function App() {
             <Layout>
                 <Routes>
                     <Route path="/" element={<LoginPage />} />
+                    <Route 
+                        path="/register" 
+                        element={
+                            <ProtectedRoute>
+                                <RegisterPage />
+                            </ProtectedRoute>
+                        } 
+                    />
                     <Route 
                         path="/overview" 
                         element={
@@ -43,6 +52,14 @@ function App() {
                         element={
                             <ProtectedRoute>
                                 <StockAnalyzer />
+                            </ProtectedRoute>
+                        } 
+                    />
+                    <Route 
+                        path="/settings" 
+                        element={
+                            <ProtectedRoute>
+                                <SettingsPage />
                             </ProtectedRoute>
                         } 
                     />

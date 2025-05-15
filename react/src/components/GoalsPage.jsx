@@ -109,14 +109,18 @@ function GoalsPage() {
                     },
                 ]);
 
-            if (goalsError) throw goalsError;
+            if (goalsError) {
+                console.error('Error saving goal:', goalsError);
+                setError('Failed to save goal: ' + goalsError.message);
+                return;
+            }
 
             // Update user profile
             const { error: userProfileError } = await supabase
                 .from('USERPROFILE')
                 .upsert([
                     {
-                        profile_id: userId,
+                        old_profile_id: userId,
                         income_frequency: values.incomeFrequency,
                         current_savings: parseFloat(values.currentSaving),
                         monthly_expenses: parseFloat(values.monthlyExpense),
@@ -125,14 +129,17 @@ function GoalsPage() {
                     },
                 ]);
 
-            if (userProfileError) throw userProfileError;
+            if (userProfileError) {
+                console.error('Error updating profile:', userProfileError);
+                // Don't set error here since the goal was saved successfully
+            }
 
             // Refresh goals list
             await fetchUserGoals();
             resetForm();
         } catch (error) {
-            console.error('Error saving data:', error);
-            setError('Failed to save goal');
+            console.error('Error in onSubmit:', error);
+            setError('An unexpected error occurred');
         }
     };
 

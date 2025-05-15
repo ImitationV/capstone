@@ -112,8 +112,7 @@ async def analyze_stock(request: StockRequest):
             df,
             risk_summary,
             predictions,
-            request.risk_tolerance,
-            request.owns_stock
+            request.risk_tolerance
         )
 
         # Generate and convert plots to base64

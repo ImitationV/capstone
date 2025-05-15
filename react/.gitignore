@@ -18,5 +18,16 @@ dist-ssr
 .env
 *.pyc
 
-
+/build/
+/.env
+/.env.local
+/.env.development
+/.env.test
+/.env.production
+/logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+/coverage/
+*.log
 
