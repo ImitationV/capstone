@@ -12,16 +12,11 @@ With an intuitive, minimalistic UI, users will easily be able to start and track
 - User Welcome Page/Overview/Dashboard
 - Financial Planning + Spending Goal Input Page (Transactions)
 - Sidebar + Full Screen Chatbot (Financial Recommendation)
-
-  OR
-
 - Stock Recommendation (using ML)
-- Terms and Services Page
 
 ### Extra Features
 
 - Settings
-- Receipt Scanning
 
 ## Database Integration
 
@@ -33,12 +28,6 @@ PostgreSQL for Core Financial Data
 - Expense Categories (Maybe into different columns or a separate table)
 - Transactions (Separate Table)
 
-Firebase Data Connect: NOSQL
-
--- Data Connect is a cloud-based SQL Postgres Database --
-
-- Chat History
-- Real-time Data through API calls
 
 ## Run it locally
 
