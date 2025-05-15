@@ -46,8 +46,21 @@ function OverviewPage() {
     }, [navigate]);
 
     const fetchUserSummary = async (userId) => {
-        setCurrentBalance('$101.69');
-        setTotalSavings('$50000.00');
+        try {
+            const response = await fetch(`http://localhost:4000/api/balance?userId=${userId}`);
+            const result = await response.json();
+            if (result.success) {
+                // Format as currency
+                const formattedBalance = result.balance.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+                setCurrentBalance(formattedBalance);
+            } else {
+                setCurrentBalance('$0.00');
+            }
+        } catch (error) {
+            console.error('Error fetching balance:', error);
+            setCurrentBalance('$0.00');
+        }
+        setTotalSavings('$50000.00'); // Placeholder, update as needed
     };
 
 

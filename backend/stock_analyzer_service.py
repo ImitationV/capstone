@@ -70,11 +70,10 @@ async def analyze_stock(request: StockRequest):
         # Generate recommendations
         logger.info("Generating recommendations...")
         recommendations = model.generate_trading_recommendations(
-            df, 
-            risk_summary, 
+            df,
+            risk_summary,
             predictions,
-            request.risk_tolerance,
-            request.owns_stock
+            request.risk_tolerance
         )
         
         # Generate and convert plots to base64

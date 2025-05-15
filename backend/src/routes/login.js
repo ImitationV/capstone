@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
+const { fetchCurrentBalance } = require('../services/db');
 
 // Initialize Google AI with proper error handling
 const API_KEY = process.env.GOOGLE_API_KEY;
@@ -49,6 +50,54 @@ router.post('/api/login', async (req, res) => {
     } catch (error) {
         console.error('Error during login:', error);
         res.status(500).json({ success: false, message: 'An error occurred during login' });
+    }
+});
+
+router.post('/api/register', async (req, res) => {
+    const { email, fname, lname, username, password } = req.body;
+    try {
+        // Check if username or email already exists
+        const { data: existingUser, error: checkError } = await supabase
+            .from('USERS')
+            .select('*')
+            .or(`username.eq.${username},email.eq.${email}`)
+            .maybeSingle();
+        if (checkError) {
+            console.error('Database error:', checkError);
+            return res.status(500).json({ success: false, message: 'Database error occurred' });
+        }
+        if (existingUser) {
+            return res.status(400).json({ success: false, message: 'Username or email already exists.' });
+        }
+        // Insert new user
+        const { data, error } = await supabase
+            .from('USERS')
+            .insert([{ email, fname, lname, username, password, created_at: new Date().toISOString() }])
+            .select()
+            .single();
+        if (error) {
+            console.error('Database error:', error);
+            return res.status(500).json({ success: false, message: 'Database error occurred' });
+        }
+        res.json({ success: true, user: { id: data.id, username: data.username, fname: data.fname } });
+    } catch (error) {
+        console.error('Error during registration:', error);
+        res.status(500).json({ success: false, message: 'An error occurred during registration' });
+    }
+});
+
+// Endpoint to get current balance for a user
+router.get('/api/balance', async (req, res) => {
+    const userId = req.query.userId;
+    if (!userId) {
+        return res.status(400).json({ success: false, message: 'Missing userId parameter' });
+    }
+    try {
+        const balance = await fetchCurrentBalance(userId);
+        res.json({ success: true, balance });
+    } catch (error) {
+        console.error('Error fetching balance:', error);
+        res.status(500).json({ success: false, message: 'Error fetching balance' });
     }
 });
 

@@ -88,7 +88,7 @@ const StockAnalyzer = () => {
                                 type="text"
                                 id="ticker"
                                 value={ticker}
-                                onChange={(e) => setTicker(e.target.value)}
+                                onChange={(e) => setTicker(e.target.value.toUpperCase())}
                                 placeholder="Enter stock ticker (e.g., AAPL)"
                                 className="ticker-input"
                                 required
@@ -135,14 +135,6 @@ const StockAnalyzer = () => {
                                     {analysis.recommendations.reasoning.map((reason, index) => (
                                         <li key={index}>{reason}</li>
                                     ))}
-                                </ul>
-                            </div>
-
-                            <div className="model-performance">
-                                <h3>Model Performance</h3>
-                                <ul>
-                                    <li>Prediction Error: ${analysis.predictions.error.toFixed(2)}</li>
-                                    <li>Mean Absolute Percentage Error (MAPE): {(analysis.predictions.mape * 100).toFixed(2)}%</li>
                                 </ul>
                             </div>
                         </div>

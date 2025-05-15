@@ -16,12 +16,14 @@ function TransactionsPage() {
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
     const [currentUserId, setCurrentUserId] = useState(null); // State to store the logged-in user ID
+    const [currentBalance, setCurrentBalance] = useState(null);
 
     // Effect to get the user ID from localStorage
     useEffect(() => {
         const user = JSON.parse(localStorage.getItem('user'));
         if (user && user.id) {
             setCurrentUserId(user.id);
+            fetchCurrentBalance(user.id);
         } else {
             // Handle case where user is not logged in or user data is incomplete
             setError('User not logged in. Please log in to add transactions.');
@@ -107,10 +109,24 @@ function TransactionsPage() {
                 setAmount('');
                 setPaymentMode('');
                 setError(''); // Clear any previous errors
+                fetchCurrentBalance(currentUserId);
             }
         } catch (error) {
             console.error('An unexpected error occurred:', error);
             setError('An unexpected error occurred while saving the transaction.');
+        }
+    };
+
+    const fetchCurrentBalance = async (userId) => {
+        try {
+            const response = await fetch(`/api/current_balance?user_id=${userId}`);
+            const result = await response.json();
+            if (result.success) {
+                setCurrentBalance(result.balance);
+                // Optionally update localStorage or global state here
+            }
+        } catch (err) {
+            console.error('Failed to fetch current balance:', err);
         }
     };
 
