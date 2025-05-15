@@ -20,7 +20,7 @@ const formatTimestampToDateLabel = (timestamp) => {
   return '';
 };
 
-const BalanceOverTimeChart = ({ userId }) => {
+const BalanceOverTimeChart = ({ userId , onBalanceUpdate}) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -122,7 +122,12 @@ const BalanceOverTimeChart = ({ userId }) => {
         const finalChartData = Object.values(aggregatedDataMap).sort((a, b) => a.date - b.date);
 
         setData(finalChartData);
-
+        
+        //Call the callback with the last balance if it exists
+        if (finalChartData.length > 0){
+          const lastBalance = finalChartData[finalChartData.length - 1].balance;
+          onBalanceUpdate(lastBalance); // Call the callback with the last balance
+        }
       } catch (err) {
         console.error("Error fetching or calculating balance data:", err);
         setError(err.message);

@@ -60,7 +60,7 @@ function OverviewPage() {
             console.error('Error fetching balance:', error);
             setCurrentBalance('$0.00');
         }
-        setTotalSavings('$50000.00'); // Placeholder, update as needed
+        setTotalSavings(formattedBalance); // Placeholder, update as needed
     };
 
 
@@ -82,8 +82,7 @@ function OverviewPage() {
                     </div>
                     <div className="menu-box">
                         <h3>Goal</h3>
-                        <ul>
-                            <li><p>Amount: </p></li>  
+                        <ul> 
                             <li><p>Status: Active</p></li> 
                         </ul>
                     </div>
@@ -105,7 +104,12 @@ function OverviewPage() {
                          // Renders charts only if userId is available and not loading
                         <>
                             <div className="chart-box">
-                                <BalanceOverTimeChart userId={userId} />
+                                <BalanceOverTimeChart userId={userId} 
+                                    onBalanceUpdate={(balance) => {
+                                        const formattedBalance = balance.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+                                        setCurrentBalance(formattedBalance);
+                                    }}
+                                />
                             </div>
                             <div className="chart-box">
                                 <SpendingByCategoryChart userId={userId} />
