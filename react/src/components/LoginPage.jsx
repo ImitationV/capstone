@@ -78,7 +78,6 @@ function LoginPage() {
                             placeholder="Enter your password"
                         />
                     </div>
-<<<<<<< HEAD
                     <button type='submit' onClick={handleLogin} className="sign-in-button">Sign In</button>
                     
                     <div className="login-divider">
@@ -87,9 +86,6 @@ function LoginPage() {
                     
                     <GoogleAuth />
                     
-=======
-                    <button type='submit' className="sign-in-button">Sign In</button>
->>>>>>> main
                     <div className="create-account-link">
                         <a href="#" onClick={(e) => { e.preventDefault(); navigate('/register'); }}>Create Account</a>
                     </div>
